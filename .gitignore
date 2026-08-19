@@ -1,5 +1,6 @@
 # Personal career history — never commit. Ship the .example files instead.
 input/narratives.md
+input/contact.json
 
 # Slug -> real posting mapping. The redacted corpus is tracked; this is not.
 jobs/INDEX.local.md

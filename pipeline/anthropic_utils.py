@@ -1,6 +1,8 @@
 """Shared Anthropic integration utilities."""
 
+import json
 import time
+from collections.abc import Callable
 from typing import Any, cast
 
 import anthropic
@@ -20,27 +22,39 @@ def _get_anthropic_client() -> anthropic.Anthropic:
     return _client
 
 
-def _extract_tool_response(response: Message) -> dict[str, Any]:
-    """Extract tool input from the first tool_use block in response.
+Validator = Callable[[dict[str, Any]], bool]
 
-    Args:
-        response: Anthropic message response
 
-    Returns:
-        The input dict from the tool_use block
+def select_tool_input(
+    inputs: list[dict[str, Any]], validate: Validator | None
+) -> dict[str, Any]:
+    """Pick the first tool input that satisfies `validate`.
 
-    Raises:
-        RuntimeError: If no tool_use block found in response
+    A response can carry more than one tool_use block, and the first is not
+    reliably the good one: a real fit response appended a second block holding
+    empty arrays and reasoning "placeholder" after a first block whose nested
+    objects had been flattened. Indexing [0] made the usable content invisible.
+
+    With no validator the first block is returned, preserving the behaviour of
+    stages that have no shape worth checking.
     """
-    try:
-        tool_block = next(b for b in response.content if b.type == "tool_use")
-    except StopIteration:
-        raise RuntimeError("No tool_use block in response")
+    if not inputs:
+        raise ValueError("no tool_use block in response")
+    if validate is None:
+        return inputs[0]
+    for candidate in inputs:
+        if validate(candidate):
+            return candidate
+    raise ValueError(f"no usable tool_use block among {len(inputs)} returned")
 
-    return cast(dict[str, Any], tool_block.input)
+
+def _tool_inputs(response: Message) -> list[dict[str, Any]]:
+    return [cast(dict[str, Any], b.input) for b in response.content if b.type == "tool_use"]
 
 
-def call_model(stage: str, **kwargs: Any) -> dict[str, Any]:
+def call_model(
+    stage: str, validate: Validator | None = None, attempts: int = 1, **kwargs: Any
+) -> dict[str, Any]:
     """Call the Anthropic API and extract the forced-tool response.
 
     The single chokepoint for every pipeline model call. When a RunContext
@@ -49,6 +63,18 @@ def call_model(stage: str, **kwargs: Any) -> dict[str, Any]:
     and response snapshots — is recorded and emitted as events. With no
     active context this behaves exactly like the old inline pattern.
     """
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return _call_once(stage, validate, attempt, **kwargs)
+        except ValueError as exc:  # malformed tool call — worth another sample
+            last_error = exc
+    raise ValueError(f"{stage}: {attempts} attempt(s) produced no usable tool call ({last_error})")
+
+
+def _call_once(
+    stage: str, validate: Validator | None, attempt: int, **kwargs: Any
+) -> dict[str, Any]:
     ctx = current_trace.get()
     seq = ctx.begin_stage(stage) if ctx is not None else 0
 
@@ -62,12 +88,14 @@ def call_model(stage: str, **kwargs: Any) -> dict[str, Any]:
     response = _get_anthropic_client().messages.create(**kwargs)
     latency_ms = int((time.perf_counter() - start) * 1000)
 
-    result = _extract_tool_response(response)
+    inputs = _tool_inputs(response)
 
     if ctx is not None:
         ctx.finish_call(
             seq=seq,
             stage=stage,
+            attempt=attempt,
+            tool_blocks=len(inputs),
             model=response.model,
             tokens_in=response.usage.input_tokens,
             tokens_out=response.usage.output_tokens,
@@ -77,19 +105,73 @@ def call_model(stage: str, **kwargs: Any) -> dict[str, Any]:
             response=[b.model_dump() for b in response.content],
             fallback_model=kwargs.get("model"),
         )
-    return result
+    return select_tool_input(inputs, validate)
+
+
+def call_model_text(stage: str, **kwargs: Any) -> str:
+    """Traced call for a stage that returns prose rather than a tool call.
+
+    The control arm needs this. Calling the SDK directly, as it did, left half
+    of every sweep's documents with no token, latency, or cost record — in a
+    harness whose selling point is that every model call is accounted for.
+    """
+    ctx = current_trace.get()
+    seq = ctx.begin_stage(stage) if ctx is not None else 0
+    kwargs.setdefault("thinking", {"type": "disabled"})
+
+    start = time.perf_counter()
+    response = _get_anthropic_client().messages.create(**kwargs)
+    latency_ms = int((time.perf_counter() - start) * 1000)
+
+    if ctx is not None:
+        ctx.finish_call(
+            seq=seq,
+            stage=stage,
+            attempt=1,
+            tool_blocks=0,
+            model=response.model,
+            tokens_in=response.usage.input_tokens,
+            tokens_out=response.usage.output_tokens,
+            stop_reason=response.stop_reason,
+            latency_ms=latency_ms,
+            request={k: v for k, v in kwargs.items()},
+            response=[b.model_dump() for b in response.content],
+            fallback_model=kwargs.get("model"),
+        )
+    return "".join(b.text for b in response.content if b.type == "text").strip()
 
 
 def dict_items(value: object) -> list[dict[str, Any]]:
     """Coerce a tool-result array field down to the objects it declared.
 
     A tool's `input_schema` is advisory. The API guarantees a well-formed tool
-    call, not that nested items match their declared types — a fit run has
-    returned `terminology` as a list of bare strings despite the schema
-    requiring objects. Stages read these items with `.get()`, so drop anything
-    that is not a dict here rather than raising AttributeError mid-stage after
-    the model call has already been paid for.
+    call, not that nested structures match their declared types. Two shapes have
+    been observed in real runs, both with `stop_reason=tool_use` and nothing
+    truncated:
+
+    - a list containing bare strings where the schema declared objects
+    - the entire array delivered as a JSON *string*, wrapping the list in a
+      single-key object: `"matches": "{\"matches\": [{...}]}"`
+
+    The second one is why this function recovers rather than only filters.
+    Returning `[]` for it discarded ten matches and eight gaps in silence, and
+    the generator ran with no fit guidance while the stage reported success.
+
+    Recovery stops where it would have to guess: an object with more than one
+    key offers two candidate arrays and no basis for choosing, so it yields
+    nothing rather than picking.
     """
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except (ValueError, TypeError):
+            return []
+        if isinstance(parsed, dict):
+            if len(parsed) != 1:
+                return []
+            parsed = next(iter(parsed.values()))
+        value = parsed
+
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, dict)]

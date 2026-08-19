@@ -8,26 +8,16 @@ to beat. Every measured delta is attributable to the staged structure, because
 the structure is the only variable.
 """
 
-import anthropic
-
-from config import PIPELINE_MODEL, PROMPTS_DIR, get_anthropic_api_key
-
-_client: anthropic.Anthropic | None = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    global _client  # noqa: PLW0603
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=get_anthropic_api_key())
-    return _client
+from config import PIPELINE_MODEL, PROMPTS_DIR
+from pipeline.anthropic_utils import call_model_text
 
 
 def run_control(jd_content: str, narratives_text: str) -> str:
     """Generate a baseline resume in a single call. Returns markdown."""
-    response = _get_client().messages.create(
+    return call_model_text(
+        "control",
         model=PIPELINE_MODEL,
         max_tokens=4096,
-        thinking={"type": "disabled"},
         system=(PROMPTS_DIR / "control.md").read_text(),
         messages=[
             {
@@ -40,4 +30,3 @@ def run_control(jd_content: str, narratives_text: str) -> str:
             }
         ],
     )
-    return "".join(b.text for b in response.content if b.type == "text").strip()

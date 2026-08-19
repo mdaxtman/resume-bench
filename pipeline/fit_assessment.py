@@ -86,6 +86,15 @@ _FIT_REPORT_SCHEMA: dict[str, Any] = {
 }
 
 
+def fit_is_usable(result: dict[str, Any]) -> bool:
+    """A fit report is usable when at least one match survives coercion.
+
+    Matches are what make the pipeline arm a pipeline arm. Without them the
+    generator runs unguided and produces a control resume with extra steps.
+    """
+    return bool(dict_items(result.get("matches")))
+
+
 def run_fit_assessment(jd_content: str, narratives_text: str) -> dict[str, Any]:
     """Evaluate candidate fit against job description.
 
@@ -109,6 +118,8 @@ def run_fit_assessment(jd_content: str, narratives_text: str) -> dict[str, Any]:
 
     result = call_model(
         "fit",
+        validate=fit_is_usable,
+        attempts=3,
         model=PIPELINE_MODEL,
         max_tokens=4096,
         system=system_prompt,

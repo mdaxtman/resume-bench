@@ -20,6 +20,7 @@ from corpus import load_jd
 from evaluation.contracts import AuthenticityInput, ColdReadInput
 from evaluation.control import run_control
 from evaluation.judges import run_authenticity, run_cold_read
+from pipeline.anthropic_utils import dict_items
 from pipeline.fit_assessment import run_fit_assessment
 from pipeline.generator import run_generator
 from pipeline.refinement import run_refinement
@@ -57,11 +58,29 @@ def read_metadata(sweep_id: str) -> dict[str, Any]:
     return dict(json.loads(path.read_text())) if path.is_file() else {}
 
 
+def require_usable_fit(fit: dict[str, Any]) -> None:
+    """Reject a fit report the generator cannot act on.
+
+    The pipeline arm is only the pipeline arm because the generator is guided by
+    this report. When coercion yields nothing, what runs is a control arm with
+    two extra edit passes — and it scores like one. That must surface as a failed
+    sample rather than quietly becoming a data point, because a silently
+    degraded arm biases every aggregate it lands in.
+    """
+    if not dict_items(fit.get("matches")):
+        raise ValueError(
+            "fit report unusable: no matches survived coercion "
+            f"(raw type {type(fit.get('matches')).__name__}). "
+            "The generator would run unguided; refusing to record this sample."
+        )
+
+
 def generate_pipeline_arm(
     jd: str, narratives: str, contact: dict[str, Any] | None
 ) -> tuple[str, dict[str, Any]]:
     """Four staged calls. Returns (final markdown, intermediate artefacts)."""
     fit = run_fit_assessment(jd, narratives)
+    require_usable_fit(fit)
     resume_data = run_generator(narratives, fit, contact)
     draft = build_resume_markdown(resume_data)
     screener = run_screener(jd, draft)
