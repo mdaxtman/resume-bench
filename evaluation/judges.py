@@ -19,7 +19,7 @@ from evaluation.contracts import (
     ColdReadInput,
     ColdReadScores,
 )
-from pipeline.anthropic_utils import call_model
+from pipeline.anthropic_utils import call_model, str_items
 
 _COLD_READ_TOOL = "submit_cold_read"
 _AUTHENTICITY_TOOL = "submit_authenticity"
@@ -134,12 +134,32 @@ def run_cold_read(inp: ColdReadInput, stage: str = "judge_cold_read") -> ColdRea
     )
 
 
+def authenticity_findings(result: dict[str, Any]) -> tuple[int, list[str], list[str]]:
+    """Validate and coerce the judge's raw findings.
+
+    More findings than claims checked is arithmetically impossible, so it means
+    the response is malformed rather than that the resume is catastrophic. The
+    previous code clamped instead, producing a confident 0.0 that carried 0.4 of
+    the composite and dragged the corpus mean with it. Raising surfaces the bad
+    sample instead of burying it in an average.
+    """
+    claims = int(result.get("claims_checked", 0) or 0)
+    if claims <= 0:
+        raise ValueError(f"authenticity judge reported claims_checked={claims}; cannot score")
+
+    untraceable = str_items(result.get("untraceable"))
+    overstatements = str_items(result.get("overstatements"))
+    if len(untraceable) + len(overstatements) > claims:
+        raise ValueError(
+            f"impossible authenticity findings: {len(untraceable)} untraceable + "
+            f"{len(overstatements)} overstatements against {claims} claims checked"
+        )
+    return claims, untraceable, overstatements
+
+
 def run_authenticity(inp: AuthenticityInput) -> AuthenticityScores:
     result = call_model("judge_authenticity", **build_authenticity_request(inp))
-    # Tool input_schema is advisory — coerce rather than trust the declared types.
-    untraceable = [str(x) for x in result.get("untraceable", []) or []]
-    overstatements = [str(x) for x in result.get("overstatements", []) or []]
-    claims = max(1, int(result.get("claims_checked", 0) or 0))
+    claims, untraceable, overstatements = authenticity_findings(result)
     return AuthenticityScores(
         claims_checked=claims,
         untraceable=untraceable,

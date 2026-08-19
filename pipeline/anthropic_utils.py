@@ -161,17 +161,41 @@ def dict_items(value: object) -> list[dict[str, Any]]:
     key offers two candidate arrays and no basis for choosing, so it yields
     nothing rather than picking.
     """
+    value = _recover_list(value)
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _recover_list(value: object) -> list[Any]:
+    """Best-effort recovery of an array field, whatever shape it arrived in.
+
+    A bare string is NOT iterated: doing so yields characters, which is how one
+    sentence became 868 findings in a live run. It is either recoverable JSON or
+    a single item.
+    """
     if isinstance(value, str):
         try:
             parsed = json.loads(value)
         except (ValueError, TypeError):
-            return []
+            return [value] if value.strip() else []
         if isinstance(parsed, dict):
             if len(parsed) != 1:
                 return []
             parsed = next(iter(parsed.values()))
         value = parsed
 
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, dict)]
+    if isinstance(value, list):
+        return value
+    return []
+
+
+def str_items(value: object) -> list[str]:
+    """Coerce a tool-result array-of-strings field.
+
+    Items that arrive as objects are rendered rather than dropped — a finding
+    reported in the wrong shape is still a finding, and silently discarding it
+    would understate the penalty.
+    """
+    return [
+        item if isinstance(item, str) else json.dumps(item, default=str)
+        for item in _recover_list(value)
+    ]
