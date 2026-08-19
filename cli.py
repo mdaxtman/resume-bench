@@ -17,8 +17,9 @@ from datetime import datetime
 from typing import Any
 
 from config import INPUT_DIR, JOBS_DIR
-from corpus import list_slugs
+from corpus import list_slugs, load_jd
 from evaluation import report as report_mod
+from evaluation.keywords import cached_keywords, coverage
 from evaluation.rescore import discover, load_slug_map, rescore_one
 from evaluation.sweep import ARMS, read_metadata, run_sample, write_metadata
 
@@ -108,6 +109,39 @@ def cmd_rescore(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_coverage(args: argparse.Namespace) -> int:
+    """Literal keyword coverage for every document in an existing sweep.
+
+    Runs against documents already on disk. The only model calls are one
+    extraction per JD, cached, and identical for both arms.
+    """
+    root = pathlib.Path("runs") / args.sweep_id
+    if not root.is_dir():
+        raise SystemExit(f"No sweep at {root}")
+
+    samples = sorted(root.glob("*/*/sample-*/resume.md"))
+    slugs = sorted({p.parts[-4] for p in samples})
+    print(f"coverage {args.sweep_id}: {len(samples)} documents across {len(slugs)} JDs")
+
+    keywords = {}
+    for slug in slugs:
+        try:
+            keywords[slug] = cached_keywords(slug, load_jd(slug))
+        except Exception as exc:
+            print(f"  {slug}: extraction FAILED ({exc})", file=sys.stderr)
+    print(f"  keyword lists ready for {len(keywords)}/{len(slugs)} JDs\n")
+
+    for doc in samples:
+        slug = doc.parts[-4]
+        if slug not in keywords:
+            continue
+        result = coverage(doc.read_text(), keywords[slug])
+        (doc.parent / "coverage.json").write_text(json.dumps(result, indent=2))
+
+    print(f"Done. Wrote coverage.json beside {len(samples)} documents.")
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     print(report_mod.load_and_render(args.sweep_id))
     return 0
@@ -160,6 +194,10 @@ def main(argv: list[str] | None = None) -> int:
     p_rescore.add_argument("--sweep-id", default="rescore-01")
     p_rescore.add_argument("--dry-run", action="store_true", help="list documents, call nothing")
     p_rescore.set_defaults(func=cmd_rescore)
+
+    p_cov = sub.add_parser("coverage", help="literal keyword coverage over an existing sweep")
+    p_cov.add_argument("--sweep-id", required=True)
+    p_cov.set_defaults(func=cmd_coverage)
 
     p_report = sub.add_parser("report", help="aggregate a sweep")
     p_report.add_argument("--sweep-id", help="default: most recent")
