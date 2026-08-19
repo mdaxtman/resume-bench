@@ -1,0 +1,65 @@
+[COMPANY] Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced technology. By bringing the expertise, technology, and business model of the 21st century’s most innovative companies to the defense industry, [COMPANY] is changing how military systems are designed, built and sold. [COMPANY] family of systems is powered by [COMPANY] OS, an AI-powered operating system that turns thousands of data streams into a realtime, 3D command and control center. As the world enters an era of strategic competition, [COMPANY] is committed to bringing cutting-edge autonomy, AI, computer vision, sensor fusion, and networking technology to the military in months, not years.
+
+### ABOUT THE TEAM
+
+The Discovery team at [COMPANY] is at the forefront of incubating and maturing high-potential, software-defined, AI-native offerings that meet the toughest, newest challenges across hardware, software, space, and cyber domains. We're the architects of mission autonomy and mesh networking, delivering scalable hardware solutions that meet some of the most urgent national security needs. By working hand-in-hand with elite teams in Perception, AI, Motion Planning, Hardware, Test Engineering, Space, Networking, and Vehicle hardware, we craft cutting-edge, end-to-end systems that redefine mission success.
+
+### ABOUT THE JOB
+
+As a Frontend Software Engineer in the Discovery team, you will tackle a diverse range of challenges in interaction with autonomous systems and missile defense systems. Your work will ensure seamless integration of [COMPANY] products to achieve critical outcomes. You will work on a fast paced team, alongside real operators, and have opportunities to watch your creations operate in fielded deployment environments.  
+  
+Above all, Software Engineers at [COMPANY] must embody a “Whatever It Takes” mindset—executing tasks expediently, scalably, and pragmatically while prioritizing the mission. You will make sound engineering decisions to deliver high-quality outcomes on time. In addition to building the software, you will work directly with customers to deploy it.  
+  
+**WHAT YOU’LL DO**
+
+- Develop tools and capabilities that extend [COMPANY] [COMPANY] OS to solve unique customer problems in the command and control of complex assets, the planning and execution of missile defense missions, networking, and remote asset management in far-edge environments.
+- Collaborate closely with customers, product designers, and other engineering teams to shape and build new software products and applications, optimizing for maximum value to the end user.
+- Build, test, deploy, and demonstrate mission-critical code in a tight feedback loop with end users.
+- Travel up to 25% of the time to participate in customer events and deploy capabilities in real-world scenarios.
+- Contribute to the development of existing software services across [COMPANY], aiming to develop reusable components that contribute to success across multiple [COMPANY] product lines.
+
+#### REQUIRED QUALIFICATIONS
+
+- Strong engineering background from industry or school, ideally in areas/fields such as Computer Science, Software Engineering, Mathematics, or Physics
+- Proficiency with web-based technologies, specifically React and Typescript
+- Ability to empathize with end-users, to turn needs into features, and to balance user experience with engineering constraints
+- Experience with real-time user interfaces that use reactive programming libraries - ReactJS or similar
+- Ability to quickly understand and navigate complex systems and established code bases
+- A desire to work on critical software that has a real-world impact
+- Eligible to obtain and maintain an active U.S. Top Secret security clearance
+
+#### PREFERRED QUALIFICATIONS
+
+- Development of military operator-facing user interfaces
+- Experience working with military customers
+- Distributed communication networks and message standards
+- Knowledge of military systems and operational tactics
+
+US Salary Range
+
+$191,000 - $253,000 USD
+
+The salary range for this role is an estimate based on a wide range of compensation factors, inclusive of base salary only. Actual salary offer may vary based on (but not limited to) work experience, education and/or training, critical skills, and/or business considerations. Highly competitive equity grants are included in the majority of full time offers; and are considered part of [COMPANY] total compensation package. Additionally, [COMPANY] offers top-tier benefits for full-time employees, including:
+
+### Benefits
+
+At [COMPANY], we invest in our people. Our comprehensive, competitive benefits package (available at little to no cost to employees) ensures you’re supported in health, recovery, and whatever comes next. *For more information, [Explore Our Benefits](
+
+### Protecting Yourself from Recruitment Scams
+
+[COMPANY] is committed to maintaining the integrity of our Talent acquisition process and the security of our candidates. We've observed a rise in sophisticated phishing and fraudulent schemes where individuals impersonate [COMPANY] representatives, luring job seekers with false interviews or job offers. These scammers often attempt to extract payment or sensitive personal information.
+
+To ensure your safety and help you navigate your job search with confidence, please keep the following critical points in mind:
+
+- **No Financial Requests:** [COMPANY] will never solicit payment or demand personal financial details (such as banking information, credit card numbers, or social security numbers) at any stage of our hiring process. Our legitimate recruitment is entirely free for candidates.
+- **Please always verify communications:**
+	- Direct from [COMPANY]: If you receive an email from one of our recruiters, it will *only* come from an `@[COMPANY].com` address.
+		- Via Agency Partner: If contacted by a recruiting agency for an [COMPANY] role, their email will clearly identify their agency. If you suspect any suspicious activity, please verify the agency's authenticity by reaching out to [contact@[COMPANY].com](mailto:contact@[COMPANY].com).
+- **Exercise Caution with Unsolicited Outreach:** If you receive any communication that appears suspicious, contains grammatical errors, or makes unusual requests, do not engage. Always confirm the sender's email domain is @[COMPANY].com before providing any personal information or clicking on links.
+- **What to Do If You Suspect Fraud:** Should you encounter any questionable or fraudulent outreach claiming to be from [COMPANY], please report it immediately to [contact@[COMPANY].com](mailto:contact@[COMPANY].com). Your proactive caution is invaluable in protecting your personal information and upholding the security and trustworthiness of our recruitment efforts.
+
+### Data Privacy
+
+To view [COMPANY] candidate data privacy policy, please visit [
+
+By submitting your application, you consent to [COMPANY] Industries using a third-party service provider to conduct pre-employment risk, integrity, and due diligence screening and assessing potential risks as part of your application process. This third-party service provider provides risk-intelligence services that may include analysis of sanctions and watchlists, adverse media, public-record information, and other lawful open-source or commercial data sources. This third-party service provider does not act as a consumer reporting agency. Use of this provider helps to ensure compliance with applicable laws and protect technology, intellectual property, and organizational security.

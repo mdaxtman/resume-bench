@@ -1,0 +1,31 @@
+[project]
+name = "resume-bench"
+version = "0.1.0"
+description = "A multi-stage resume tailoring pipeline, benchmarked against a control arm by blind judges."
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.40.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.4",
+    "ruff>=0.8.0",
+    "mypy>=1.14.0",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
