@@ -69,13 +69,109 @@ configs is not a result. Every mean in the report is printed with its spread.
 
 ## Results
 
-<!-- TODO: populate from the first full sweep. Report aggregate only:
-     N JDs, n per arm, per-axis mean +/- sd for both arms, per-JD W-L-T.
-     Do not break results out per JD. -->
+Two experiments, 126 scored documents, `n = 3` samples per arm per job.
 
-_Pending the first sweep under this harness._ Earlier scored runs exist but were
-produced by a model executing the rubric by hand rather than by this code, and
-are not reported here for that reason.
+**Fresh sweep** — 13 job descriptions run end to end through both arms, 76
+documents. **Archive re-score** — 50 previously generated documents, byte
+identical to ones an earlier scoring pass had already graded, re-judged under
+the current rubric. The second exists because a fresh sweep varies the documents
+*and* the ruler at once and so cannot attribute a change to either.
+
+### The measured advantage is small and not significant
+
+```
+fresh sweep            pipeline        control      delta
+jd alignment        7.70 ± 1.08    7.49 ± 0.91      +0.21
+recruiter readability 5.95 ± 0.40  5.77 ± 0.43      +0.18
+authenticity        9.43 ± 0.21    9.41 ± 0.33      +0.02
+hire intent *       7.27 ± 0.80    7.21 ± 0.73      +0.06
+composite           8.04 ± 0.44    7.91 ± 0.44      +0.13
+```
+
+Paired by job — the unit of independence, since three samples of one posting are
+not three trials — the composite delta is **+0.14, 95% CI [−0.03, +0.32]**,
+positive on 8 of 13 jobs. The interval crosses zero. The honest statement is
+*underpowered*, not *disproven*: between-job variation (sd 0.32) is more than
+twice the effect. Resolving it needs roughly 40 postings, and more samples per
+posting would not help, because the noise is between jobs rather than within
+them.
+
+### Most of the original advantage was the ruler, not the pipeline
+
+An earlier scoring pass over 25 runs recorded a composite gap of **+0.93**.
+Re-judging those same 50 documents under the current rubric gives **+0.14**.
+
+```
+                    old ruler   new ruler     swing
+jd alignment            +0.39       +0.24     -0.15
+recruiter readability   +0.52       +0.60     +0.08
+hire intent             +0.60       +0.36     -0.24
+authenticity            +1.78       -0.20     -1.98
+composite               +0.93       +0.14     -0.79
+```
+
+Almost the entire collapse is one axis, and the absolute means locate it
+precisely: the pipeline arm's authenticity barely moved (9.50 → 9.13) while the
+control arm's rose **+1.61** (7.72 → 9.33).
+
+The old rubric was not inflating the pipeline. It was penalising the control,
+for two independent reasons that happened to point the same way. Deductions were
+not normalised by document length while control resumes averaged 29% longer, so
+a longer document accrued more deductions mechanically. And every archived
+control resume opened with the literal line `# Control Resume`, so a judge
+instructed to score blind could read the arm off line one.
+
+Both are fixed here: authenticity is normalised against claims checked, judge
+isolation is carried by types rather than instructions, and any leading heading
+is stripped before a document reaches a judge.
+
+### Where the advantage is real: literal keyword coverage
+
+Every axis above is a model's judgement. This one is arithmetic — a term appears
+in the document or it does not, and the answer is identical every time it is
+computed. Terms are extracted once per posting by a call that sees only the
+posting, then matched against both arms.
+
+```
+                   pipeline   control   per-JD delta        95% CI
+fresh sweep (76)      61.0%     55.9%         +5.3pp   [-0.2, +10.9]
+archive     (50)      59.4%     56.2%         +4.7pp   [+0.4,  +9.1]
+```
+
+The archive interval **excludes zero** (t = 2.36, 12 df). Two independent
+document sets agree on direction and magnitude, and the effect is larger
+relative to its noise than the composite the harness was originally built to
+report.
+
+This is the axis the pipeline is actually designed to move: its fit stage emits
+terminology mappings above a confidence threshold and its generator is
+instructed to use them, while the control prompt says nothing of the kind. It
+was also the axis nothing was scoring. The screener stage computed keyword
+coverage and discarded it, and the control arm never ran through the screener at
+all.
+
+### What these numbers do not show
+
+The **delta** in keyword coverage is sound, because both arms are scored against
+one identical extracted list. The **~60% absolute level** is not a finding: it is
+bounded by extraction quality. Frequently missed terms fall into two groups —
+ones the candidate narratives genuinely do not support, which no pipeline can
+produce, and artefacts like `Frontend Software Engineer`, which is a title
+rather than a searchable skill and counts as missing for both arms.
+
+Keyword coverage is a proxy for one real mechanism: whether a document surfaces
+in a recruiter's search over parsed records. It is not evidence about automated
+rejection, which is rarer than commonly claimed, and it says nothing about parse
+fidelity, which is the other way documents disappear.
+
+The archive documents were generated against earlier prompts and earlier source
+narratives, and their authenticity is judged against the current narratives. Both
+arms are affected identically, which is what the comparison requires, but their
+absolute scores are not comparable with the fresh sweep's.
+
+Readability is **5.9 on both arms** — "readable but verbose" on this rubric. That
+is not a finding about the pipeline; it is a finding about both, and the largest
+quality gap either arm has.
 
 ## A worked example: an input shape that broke a stage
 

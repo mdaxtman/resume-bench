@@ -20,6 +20,7 @@ from config import INPUT_DIR, JOBS_DIR
 from corpus import list_slugs, load_jd
 from evaluation import report as report_mod
 from evaluation.keywords import cached_keywords, coverage
+from evaluation.reliability import interpret, reliability_report
 from evaluation.rescore import discover, load_slug_map, rescore_one
 from evaluation.sweep import ARMS, read_metadata, run_sample, write_metadata
 
@@ -49,15 +50,16 @@ def cmd_sweep(args: argparse.Namespace) -> int:
     contact = _load_contact()
     sweep_id = args.sweep_id or datetime.now().strftime("%Y-%m-%dT%H%M%S")
 
+    arms = tuple(args.arms) if args.arms else ARMS
+    total = len(slugs) * len(arms) * args.samples
     meta = write_metadata(sweep_id)
-    total = len(slugs) * len(ARMS) * args.samples
-    print(f"sweep {sweep_id}: {len(slugs)} JDs x {len(ARMS)} arms x {args.samples} samples "
+    print(f"sweep {sweep_id}: {len(slugs)} JDs x {len(arms)} arms x {args.samples} samples "
           f"= {total} documents")
     print("prompts: " + "  ".join(f"{k}={v}" for k, v in meta["prompts"].items()) + "\n")
 
     done = 0
     for slug in slugs:
-        for arm in ARMS:
+        for arm in arms:
             for i in range(1, args.samples + 1):
                 done += 1
                 label = f"[{done}/{total}] {slug} {arm} #{i}"
@@ -142,6 +144,56 @@ def cmd_coverage(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reliability(args: argparse.Namespace) -> int:
+    """Re-score the same documents repeatedly to separate signal from error."""
+    from collections import defaultdict
+
+    from evaluation.contracts import AuthenticityInput, ColdReadInput
+    from evaluation.judges import run_authenticity, run_cold_read
+
+    root = pathlib.Path("runs") / args.sweep_id
+    samples = sorted(root.glob("*/*/sample-*/resume.md"))
+    if not samples:
+        raise SystemExit(f"No documents under {root}")
+
+    # Span the observed readability range rather than sampling at random: an
+    # axis can be reliable in one region and flat in another.
+    scored = []
+    for doc in samples:
+        s = json.loads((doc.parent / "scores.json").read_text())
+        scored.append((s["recruiter_readability"], s["composite"], doc, s["slug"]))
+    scored.sort()
+    step = max(1, len(scored) // args.documents)
+    chosen = scored[::step][: args.documents]
+
+    print(f"reliability: {len(chosen)} documents x {args.repeats} repeats")
+    print(f"  spanning readability {chosen[0][0]:.1f} to {chosen[-1][0]:.1f}\n")
+
+    axes: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    narratives = _load_narratives() if args.authenticity else ""
+    for readability, _, doc, slug in chosen:
+        key = f"{slug}/{doc.parent.parent.name}/{doc.parent.name}"
+        jd = load_jd(slug)
+        resume = doc.read_text()
+        for trial in range(args.repeats):
+            cold = run_cold_read(ColdReadInput(jd=jd, resume=resume))
+            axes["jd_alignment"][key].append(cold.jd_alignment)
+            axes["recruiter_readability"][key].append(cold.recruiter_readability)
+            axes["hire_intent"][key].append(cold.hire_intent)
+            if args.authenticity:
+                auth = run_authenticity(AuthenticityInput(resume=resume, narratives=narratives))
+                axes["authenticity"][key].append(auth.authenticity)
+        got = [axes[a][key] for a in ("recruiter_readability",)][0]
+        print(f"  {key:52} readability {got}")
+
+    print(f"\n{'axis':<24}{'between sd':>12}{'within sd':>11}{'ICC':>7}   interpretation")
+    for axis, repeats in axes.items():
+        r = reliability_report(dict(repeats))
+        print(f"{axis.replace('_',' '):<24}{r['between_sd']:>12.2f}{r['within_sd']:>11.2f}"
+              f"{r['icc']:>7.2f}   {interpret(r['icc'])}")
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     print(report_mod.load_and_render(args.sweep_id))
     return 0
@@ -185,6 +237,8 @@ def main(argv: list[str] | None = None) -> int:
     p_sweep.add_argument("--samples", type=int, default=3,
                          help="samples per arm per JD; below 3 the spread is not meaningful")
     p_sweep.add_argument("--sweep-id", help="resume or name a sweep (default: timestamp)")
+    p_sweep.add_argument("--arms", nargs="*", choices=list(ARMS),
+                         help="restrict to one arm (default: both)")
     p_sweep.set_defaults(func=cmd_sweep)
 
     p_rescore = sub.add_parser(
@@ -198,6 +252,13 @@ def main(argv: list[str] | None = None) -> int:
     p_cov = sub.add_parser("coverage", help="literal keyword coverage over an existing sweep")
     p_cov.add_argument("--sweep-id", required=True)
     p_cov.set_defaults(func=cmd_coverage)
+
+    p_rel = sub.add_parser("reliability", help="re-score documents to measure judge noise")
+    p_rel.add_argument("--sweep-id", required=True)
+    p_rel.add_argument("--documents", type=int, default=6)
+    p_rel.add_argument("--repeats", type=int, default=4)
+    p_rel.add_argument("--authenticity", action="store_true", help="also re-run the costlier judge")
+    p_rel.set_defaults(func=cmd_reliability)
 
     p_report = sub.add_parser("report", help="aggregate a sweep")
     p_report.add_argument("--sweep-id", help="default: most recent")
