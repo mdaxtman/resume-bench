@@ -150,6 +150,92 @@ was also the axis nothing was scoring. The screener stage computed keyword
 coverage and discarded it, and the control arm never ran through the screener at
 all.
 
+### Is the instrument any good?
+
+Every number above depends on judges that are themselves models. Re-scoring the
+same document repeatedly separates two situations the aggregate cannot: a judge
+that fails to discriminate, and documents that genuinely do not differ. ICC is
+between-document variance over total variance — near 1 the axis measures the
+document, near 0 it measures nothing.
+
+Six documents, four repeats each:
+
+```
+axis                    between sd   within sd     ICC
+jd alignment                  1.13        0.25    0.95
+hire intent                   0.74        0.18    0.95
+recruiter readability         0.37        0.18    0.81
+authenticity                  0.18        0.27    0.31
+```
+
+This overturned a conclusion. Readability sat at 6.0 for 80% of documents, which
+reads as a miscalibrated rubric — three of its ten points doing all the work. The
+judge in fact reproduces its own score with a within-document sd of **0.18**, and
+returned the identical value four times out of four on five of the six documents.
+The compression is a property of the documents, not the rubric. Rewriting the
+rubric would have manufactured spread and hidden a real finding about the
+generator.
+
+**Authenticity is the axis in trouble.** Its within-document variation (0.27)
+exceeds its between-document variation (0.18), so it carries almost no
+document-level signal — while holding 0.4 of the composite weight. The likely
+explanation is benign: it was added to catch fabrication, and it sits at 9.5 for
+87% of documents because fabrication is not happening. That is what a working
+guardrail looks like. But a guardrail earns its keep by rarely firing and a
+quality axis earns its keep by spreading, and one number cannot do both. It
+belongs as a gate — reject below ~8.5, which 75 of 76 documents clear — rather
+than as weight.
+
+One known artefact, quantified rather than guessed at: **58% of documents draw an
+explicit "typo" or "date error" complaint** for a current employment date the
+judge reads as a future typo, one note proposing it was "possibly meant to be
+2024". The penalty is small (−0.14 readability) and lands on both arms almost
+equally (57% vs 59%), so no comparison here is distorted by it. The fix is to
+state the current date in the judge prompt; the harness assumed a judge knows
+when "now" is.
+
+### What moved when the generator was tuned
+
+Bullets averaged **28.8 words, under the stated 30-word cap**, and the judge
+described them at every score level as "packed with multiple clauses each
+covering architecture, tools, and impact simultaneously". The prompt constrained
+words; the judge penalised clauses, and word count cannot distinguish a 28-word
+bullet carrying one clause from a 28-word bullet carrying three. Obeying the cap
+therefore bought nothing.
+
+Four changes, each traceable to a complaint repeated across 76 documents: one
+clause of mechanism per bullet; a 55-word summary cap, with a note that "2–3
+sentences" is not a length constraint because three 35-word sentences reads as a
+wall; expand internal shorthand or drop it; group the skills list.
+
+Five job descriptions, three samples, pipeline arm only, same postings as the
+baseline:
+
+```
+axis                        before         after    delta       t
+recruiter readability   6.07 ± 0.44   6.60 ± 0.49    +0.53    3.13
+hire intent (holdout)   7.33 ± 0.70   7.40 ± 0.71    +0.07    0.26
+authenticity (guard)    9.40 ± 0.25   9.36 ± 0.27    -0.04   -0.43
+composite               8.09 ± 0.31   8.16 ± 0.34    +0.06    0.54
+```
+
+Structurally the documents changed as instructed: summaries fell from 100 to 71
+words, and bullets over the cap from 40% to 19%. The skills grouping had no
+effect at all, for a structural reason rather than a prompt one — the generator's
+output contract renders skills as a single joined string, so there is nowhere to
+put a group.
+
+**The holdout is the result.** Readability rose by half a point and hire intent
+did not move. Hire intent is deliberately excluded from the composite and was not
+tuned for, which makes it the check on whether an improvement generalises. It
+says this one did not: the documents became measurably more scannable and no more
+likely to earn a phone screen.
+
+That is the intervention working as designed and being correctly bounded, not a
+failure. Scannability and persuasiveness are different properties, and only one
+of them was changed. The practical conclusion is that formatting is not the lever
+for hire intent — worth knowing before spending further iterations on it.
+
 ### What these numbers do not show
 
 The **delta** in keyword coverage is sound, because both arms are scored against
@@ -169,9 +255,15 @@ narratives, and their authenticity is judged against the current narratives. Bot
 arms are affected identically, which is what the comparison requires, but their
 absolute scores are not comparable with the fresh sweep's.
 
-Readability is **5.9 on both arms** — "readable but verbose" on this rubric. That
-is not a finding about the pipeline; it is a finding about both, and the largest
-quality gap either arm has.
+Readability was **5.9 on both arms** before the generator change — "readable but
+verbose" on this rubric — and the tuning result above is a before/after on the
+pipeline arm alone, over 5 of the 13 postings. It is not a pipeline-versus-control
+comparison and should not be read as one.
+
+The ICC figures come from six documents spanning readability 5.0 to 6.0. ICC is
+sensitive to the range it is computed over, so these are lower bounds for axes
+whose documents happen to cluster; nothing in the corpus scores above 7.0 on
+readability, so the top of that scale is untested.
 
 ## A worked example: an input shape that broke a stage
 
