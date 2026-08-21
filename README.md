@@ -270,6 +270,55 @@ sensitive to the range it is computed over, so these are lower bounds for axes
 whose documents happen to cluster; nothing in the corpus scores above 7.0 on
 readability, so the top of that scale is untested.
 
+## Decisions this measurement implies, and has not made
+
+The results above changed what the scoring design should be. None of these are
+implemented; they are recorded because the evidence for each is already in the
+numbers, and because forgetting why a change was warranted is how a harness
+drifts back toward measuring the wrong thing.
+
+**Authenticity belongs as a gate, not as 40% of a quality score.** Its ICC is
+0.31 — within-document variation exceeds between-document variation, so it
+carries almost no document-level signal — while it holds the joint-largest
+weight in the composite. The likely explanation is benign: it was added to catch
+fabrication, and it sits at 9.5 for 87% of documents because fabrication is not
+happening. That is a working guardrail. But a guardrail earns its keep by rarely
+firing and a quality axis earns its keep by spreading, and one number cannot do
+both. As a gate it would reject below ~8.5, which 75 of 76 documents clear.
+
+**The composite is jd_alignment wearing a coat.** Variance contributed by each
+weighted term: jd alignment 0.396, authenticity 0.108, readability 0.084. The
+first is 4.7x the last. Every composite figure reported here is substantially a
+jd_alignment figure, and the weights imply a balance the axes do not deliver.
+Dropping authenticity and renormalising was tested arithmetically and moved the
+t-statistic from 1.60 to 1.75 — marginally more sensitive, not decisive, because
+removing a near-constant term rescales the delta and its error together.
+
+**Readability may have a ceiling rather than a noise problem.** The obvious
+inference from 80% of documents scoring 6.0 was a miscalibrated rubric, and the
+reliability measurement contradicted it: the judge reproduces its own score to
+within 0.18. So the compression is real. But nothing in either corpus has ever
+scored above 7.0, so the top two bands are untested and may be unreachable for
+documents of this class. Decomposing the single holistic judgement into
+sub-criteria — opening strength, bullet uniformity, section structure,
+time-to-key-fact — would produce spread arithmetically and make a score
+diagnosable rather than merely reportable. What it must not do is instruct the
+judge to "use the full range", which manufactures spread without adding
+information.
+
+**Resolving the composite comparison needs roughly 40 postings, not more
+samples.** Between-job variation (sd 0.32) is more than twice the effect (+0.14).
+`n = 3` already pins each posting's mean down well; the noise is between jobs.
+
+**Three variables have never been varied.** `JUDGE_MODEL` is a separate setting
+from `PIPELINE_MODEL` precisely so a judge can be a stronger model, and it has
+only ever been run at parity. `call_model` disables extended thinking by default,
+inherited from an interactive application where it made sense, and a judge
+fact-checking every claim against 22k tokens of ground truth is exactly where it
+might matter. And the narratives are 67% of every sweep's input tokens, identical
+across all 351 calls of a full run — the shape prompt caching exists for, and
+unused, because the code came from an application that ran one request at a time.
+
 ## A worked example: an input shape that broke a stage
 
 One JD failed the fit assessment reproducibly. The stage returned a well-formed
