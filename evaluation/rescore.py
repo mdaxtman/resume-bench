@@ -60,9 +60,11 @@ def discover(source_root: Path, mapping: dict[str, str]) -> list[dict[str, Any]]
     found: list[dict[str, Any]] = []
     for job_dir in sorted(p for p in source_root.iterdir() if p.is_dir()):
         jd_path = job_dir / "jd.md"
-        runs = sorted(p for p in (job_dir / "runs").glob("*") if p.is_dir()) if (
-            job_dir / "runs"
-        ).is_dir() else []
+        runs = (
+            sorted(p for p in (job_dir / "runs").glob("*") if p.is_dir())
+            if (job_dir / "runs").is_dir()
+            else []
+        )
         if not jd_path.is_file() or not runs:
             continue
         slug = redacted_slug(job_dir.name, mapping)

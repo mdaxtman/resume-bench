@@ -93,5 +93,3 @@ def build_resume_markdown(resume_data: dict[str, Any]) -> str:
         lines.append("")
 
     return "\n".join(lines).strip()
-
-

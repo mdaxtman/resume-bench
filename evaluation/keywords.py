@@ -66,9 +66,7 @@ def _pattern(term: str) -> re.Pattern[str]:
     adjacent alphanumeric give the property actually wanted: "React" matches
     inside "React.js" but "Java" does not match inside "JavaScript".
     """
-    return re.compile(
-        rf"(?<![A-Za-z0-9]){re.escape(term.strip())}(?![A-Za-z0-9])", re.IGNORECASE
-    )
+    return re.compile(rf"(?<![A-Za-z0-9]){re.escape(term.strip())}(?![A-Za-z0-9])", re.IGNORECASE)
 
 
 def term_present(text: str, keyword: Keyword) -> bool:

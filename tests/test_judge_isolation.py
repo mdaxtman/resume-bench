@@ -76,3 +76,17 @@ def test_cold_read_payload_contains_only_allowed_sections() -> None:
     message = payload["messages"][0]["content"]
     found = set(re.findall(r"<([a-z_]+)>", message))
     assert found == allowed, f"unexpected sections in blind judge payload: {found - allowed}"
+
+
+def test_judges_are_told_todays_date() -> None:
+    """A judge without a sense of 'now' reads a current start date as a future
+    typo and penalises the document. Measured at 58% of a 76-document corpus."""
+    from datetime import date
+
+    today = date.today().isoformat()
+    for payload in (
+        build_cold_read_request(ColdReadInput(jd=JD, resume=RESUME_A)),
+        build_authenticity_request(AuthenticityInput(resume=RESUME_A, narratives=NARRATIVES)),
+    ):
+        assert today in payload["system"]
+        assert "{today}" not in payload["system"], "placeholder left unsubstituted"

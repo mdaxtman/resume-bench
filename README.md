@@ -15,7 +15,7 @@ Every job description is run through two arms:
 **Pipeline** — four staged model calls. A fit assessment reads the JD against
 the candidate's ground-truth narratives and produces matches, gaps, and
 terminology mappings. A generator writes a resume guided by that assessment,
-emphasising matches and omitting hard gaps. A screener scores the draft from an
+emphasizing matches and omitting hard gaps. A screener scores the draft from an
 ATS perspective, seeing only the resume and the JD. A refinement pass acts on
 the screener's findings without introducing claims the draft didn't make.
 
@@ -260,6 +260,11 @@ verbose" on this rubric — and the tuning result above is a before/after on the
 pipeline arm alone, over 5 of the 13 postings. It is not a pipeline-versus-control
 comparison and should not be read as one.
 
+Every number reported here was produced before the judge prompts were given the
+current date. That change removes a measured artefact and therefore makes future
+runs incomparable with these; `compare` will report the prompt hashes as differing,
+which is the intended behaviour rather than a defect.
+
 The ICC figures come from six documents spanning readability 5.0 to 6.0. ICC is
 sensitive to the range it is computed over, so these are lower bounds for axes
 whose documents happen to cluster; nothing in the corpus scores above 7.0 on
@@ -287,28 +292,74 @@ defended against at every stage that consumes one.
 ## Running it
 
 ```bash
-cp .env.example .env                      # add your ANTHROPIC_API_KEY
-cp input/narratives.example.md input/narratives.md   # then write your own history
-
-uv run python -m cli list                 # JD slugs and existing sweeps
-uv run python -m cli sweep --all --samples 3
-uv run python -m cli report
-uv run python -m cli compare <baseline-sweep> <candidate-sweep>
+cp .env.example .env                                  # add ANTHROPIC_API_KEY
+cp input/narratives.example.md input/narratives.md    # then write your own history
 ```
 
-`compare` prints both sweeps and then states what differed between them —
-prompts, models, or weights. When nothing differed it says so, because that
-makes any score movement run-to-run variance rather than a result.
+`ANTHROPIC_API_KEY` is the only required variable. `PIPELINE_MODEL` and
+`JUDGE_MODEL` default to the same model and are separate on purpose — a judge is
+allowed to be a different, usually stronger, model than the pipeline it scores.
 
-A sweep is minutes of wall clock and real API spend. It is a CLI and not an
-HTTP endpoint on purpose: its audience is whoever is tuning prompts, and an
+### Generating and scoring
+
+```bash
+uv run python -m cli list                             # JD slugs and existing sweeps
+uv run python -m cli sweep --all --samples 3          # both arms, whole corpus
+uv run python -m cli sweep --arms pipeline --jd staff-swe-devtools-01 --samples 3
+uv run python -m cli report --sweep-id <id>
+```
+
+`--arms` restricts a run to one arm, which is what makes a before/after on a
+prompt change affordable: the control is unchanged, so there is no reason to pay
+to regenerate it.
+
+A sweep is minutes to hours of wall clock and real API spend, which is why it is
+a CLI and not an HTTP endpoint. Its audience is whoever is tuning prompts, and an
 endpoint that triggers arbitrary batch model spend is a surface worth not
-creating. Samples are idempotent — rerunning the same `--sweep-id` skips
-anything already scored, so an interrupted sweep resumes.
+creating. Samples are idempotent — rerunning the same `--sweep-id` skips anything
+already scored, so an interrupted sweep resumes rather than restarts.
 
-Per-call traces land in `runs/<sweep>/<jd>/<arm>/sample-<n>/trace.jsonl`:
-model, tokens, latency, stop reason, and the full request/response envelope.
-A score tells you a run got worse; the envelope tells you why.
+### Asking whether a result is real
+
+```bash
+uv run python -m cli compare <baseline-id> <candidate-id>
+uv run python -m cli reliability --sweep-id <id> --documents 6 --repeats 4 [--authenticity]
+uv run python -m cli coverage --sweep-id <id>
+uv run python -m cli rescore --source <archive-dir> [--dry-run]
+```
+
+**`compare`** prints both sweeps and then states what differed between them —
+prompts, models, or weights. When nothing differed it says so, which makes any
+score movement run-to-run variance rather than a result.
+
+**`reliability`** re-scores the same documents repeatedly and reports ICC per
+axis. Run this before tuning anything: an axis whose within-document variation
+rivals its between-document variation cannot detect a prompt change however large
+the change is.
+
+**`coverage`** computes literal keyword coverage over documents already on disk.
+Terms are extracted once per posting, cached, and applied identically to both
+arms. Only the extraction costs anything; the matching is pure.
+
+**`rescore`** scores an existing archive of resumes under the current judges,
+holding the documents fixed so that only the ruler varies. Documents are
+anonymised first — any leading heading is stripped, because an archived baseline
+that opens with its own arm label is not something a blind judge can be blind to.
+
+### What a run leaves behind
+
+```
+runs/<sweep>/meta.json                    prompt hashes, models, weights, git state
+runs/<sweep>/<jd>/<arm>/sample-<n>/
+    resume.md          the scored document
+    scores.json        per-axis scores and raw authenticity findings
+    coverage.json      keyword coverage, if computed
+    artefacts.json     fit report, screener report, pre-refinement draft
+    trace.jsonl        every model call: tokens, latency, stop reason, full envelope
+```
+
+The trace is what made a reproducible tool-call failure diagnosable at all. A
+score tells you a run got worse; the envelope tells you why.
 
 ## Corpus and privacy
 

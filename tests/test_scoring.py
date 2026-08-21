@@ -80,16 +80,30 @@ def test_report_renders_without_a_real_sweep() -> None:
     rows = []
     for slug in ("a", "b"):
         for i in (1, 2):
-            rows.append({
-                "slug": slug, "arm": "pipeline", "sample": i, "jd_alignment": 9.0,
-                "recruiter_readability": 8.5, "authenticity": 9.5, "hire_intent": 8.0,
-                "composite": 9.1,
-            })
-            rows.append({
-                "slug": slug, "arm": "control", "sample": i, "jd_alignment": 7.0,
-                "recruiter_readability": 7.5, "authenticity": 8.0, "hire_intent": 6.5,
-                "composite": 7.5,
-            })
+            rows.append(
+                {
+                    "slug": slug,
+                    "arm": "pipeline",
+                    "sample": i,
+                    "jd_alignment": 9.0,
+                    "recruiter_readability": 8.5,
+                    "authenticity": 9.5,
+                    "hire_intent": 8.0,
+                    "composite": 9.1,
+                }
+            )
+            rows.append(
+                {
+                    "slug": slug,
+                    "arm": "control",
+                    "sample": i,
+                    "jd_alignment": 7.0,
+                    "recruiter_readability": 7.5,
+                    "authenticity": 8.0,
+                    "hire_intent": 6.5,
+                    "composite": 7.5,
+                }
+            )
     out = render("test-sweep", rows)
     assert "2 JDs, n=2 per arm" in out
     assert "hire intent *" in out

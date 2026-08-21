@@ -10,6 +10,7 @@ so the payload can be asserted on directly in tests. Contamination is a
 property of what reaches the API, so that is what the tests inspect.
 """
 
+from datetime import date
 from typing import Any, cast
 
 from config import JUDGE_MODEL, PROMPTS_DIR
@@ -61,7 +62,16 @@ _OVERSTATEMENT_PENALTY = 1.0
 
 
 def _prompt(name: str) -> str:
-    return (PROMPTS_DIR / f"{name}.md").read_text()
+    """Load a judge prompt, substituting today's date.
+
+    Without it, a judge reasons that an employment start date it perceives as
+    future must be a typo, and docks the document for an error that is not one.
+    Measured at 58% of a 76-document corpus before this was added. A human
+    evaluator has this context for free; the harness was not supplying it.
+    """
+    return (PROMPTS_DIR / f"{name}.md").read_text().replace(
+        "{today}", date.today().isoformat()
+    )
 
 
 def _tool_call(prompt_name: str, tool: str, schema: dict[str, Any], message: str) -> dict[str, Any]:

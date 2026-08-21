@@ -19,7 +19,7 @@ from pipeline.anthropic_utils import select_tool_input
 from pipeline.fit_assessment import fit_is_usable
 
 GOOD = {"matches": [{"requirement": "React", "priority": "required", "notes": "9y"}]}
-FLATTENED = {"matches": "\n<parameter name=\"requirement\">React", "priority": "required"}
+FLATTENED = {"matches": '\n<parameter name="requirement">React', "priority": "required"}
 EMPTY = {"matches": [], "gaps": [], "reasoning": "placeholder"}
 
 
@@ -61,4 +61,5 @@ def test_fit_usability_requires_recoverable_matches() -> None:
 def test_fit_usability_accepts_the_json_string_shape() -> None:
     """Run 1's malformation is recoverable, so it counts as usable."""
     import json
+
     assert fit_is_usable({"matches": json.dumps({"matches": GOOD["matches"]})})

@@ -25,9 +25,7 @@ def _get_anthropic_client() -> anthropic.Anthropic:
 Validator = Callable[[dict[str, Any]], bool]
 
 
-def select_tool_input(
-    inputs: list[dict[str, Any]], validate: Validator | None
-) -> dict[str, Any]:
+def select_tool_input(inputs: list[dict[str, Any]], validate: Validator | None) -> dict[str, Any]:
     """Pick the first tool input that satisfies `validate`.
 
     A response can carry more than one tool_use block, and the first is not

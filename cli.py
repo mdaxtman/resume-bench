@@ -10,6 +10,7 @@ batch model spend is a surface worth not creating.
 """
 
 import argparse
+import io
 import json
 import pathlib
 import sys
@@ -228,6 +229,12 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # A sweep runs for hours and is usually piped to tee, where Python's default
+    # block buffering makes progress invisible until the process exits. Line
+    # buffering costs nothing and makes a long run observable while it runs.
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(line_buffering=True)
+
     parser = argparse.ArgumentParser(prog="cli", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
