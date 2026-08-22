@@ -69,9 +69,7 @@ def _prompt(name: str) -> str:
     Measured at 58% of a 76-document corpus before this was added. A human
     evaluator has this context for free; the harness was not supplying it.
     """
-    return (PROMPTS_DIR / f"{name}.md").read_text().replace(
-        "{today}", date.today().isoformat()
-    )
+    return (PROMPTS_DIR / f"{name}.md").read_text().replace("{today}", date.today().isoformat())
 
 
 def _tool_call(prompt_name: str, tool: str, schema: dict[str, Any], message: str) -> dict[str, Any]:

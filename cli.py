@@ -54,8 +54,10 @@ def cmd_sweep(args: argparse.Namespace) -> int:
     arms = tuple(args.arms) if args.arms else ARMS
     total = len(slugs) * len(arms) * args.samples
     meta = write_metadata(sweep_id)
-    print(f"sweep {sweep_id}: {len(slugs)} JDs x {len(arms)} arms x {args.samples} samples "
-          f"= {total} documents")
+    print(
+        f"sweep {sweep_id}: {len(slugs)} JDs x {len(arms)} arms x {args.samples} samples "
+        f"= {total} documents"
+    )
     print("prompts: " + "  ".join(f"{k}={v}" for k, v in meta["prompts"].items()) + "\n")
 
     done = 0
@@ -97,8 +99,10 @@ def cmd_rescore(args: argparse.Namespace) -> int:
         return 0
 
     narratives = _load_narratives()
-    print("  NOTE: authenticity is scored against CURRENT narratives; these documents\n"
-          "        predate them, so these scores are not comparable to a fresh sweep.\n")
+    print(
+        "  NOTE: authenticity is scored against CURRENT narratives; these documents\n"
+        "        predate them, so these scores are not comparable to a fresh sweep.\n"
+    )
 
     for n, item in enumerate(items, start=1):
         label = f"[{n}/{len(items)}] {item['slug']} {item['arm']} #{item['sample']}"
@@ -190,8 +194,10 @@ def cmd_reliability(args: argparse.Namespace) -> int:
     print(f"\n{'axis':<24}{'between sd':>12}{'within sd':>11}{'ICC':>7}   interpretation")
     for axis, repeats in axes.items():
         r = reliability_report(dict(repeats))
-        print(f"{axis.replace('_',' '):<24}{r['between_sd']:>12.2f}{r['within_sd']:>11.2f}"
-              f"{r['icc']:>7.2f}   {interpret(r['icc'])}")
+        print(
+            f"{axis.replace('_', ' '):<24}{r['between_sd']:>12.2f}{r['within_sd']:>11.2f}"
+            f"{r['icc']:>7.2f}   {interpret(r['icc'])}"
+        )
     return 0
 
 
@@ -241,11 +247,16 @@ def main(argv: list[str] | None = None) -> int:
     p_sweep = sub.add_parser("sweep", help="generate and score both arms across the corpus")
     p_sweep.add_argument("--all", action="store_true", help="every JD in the corpus (default)")
     p_sweep.add_argument("--jd", nargs="*", help="specific JD slugs")
-    p_sweep.add_argument("--samples", type=int, default=3,
-                         help="samples per arm per JD; below 3 the spread is not meaningful")
+    p_sweep.add_argument(
+        "--samples",
+        type=int,
+        default=3,
+        help="samples per arm per JD; below 3 the spread is not meaningful",
+    )
     p_sweep.add_argument("--sweep-id", help="resume or name a sweep (default: timestamp)")
-    p_sweep.add_argument("--arms", nargs="*", choices=list(ARMS),
-                         help="restrict to one arm (default: both)")
+    p_sweep.add_argument(
+        "--arms", nargs="*", choices=list(ARMS), help="restrict to one arm (default: both)"
+    )
     p_sweep.set_defaults(func=cmd_sweep)
 
     p_rescore = sub.add_parser(
