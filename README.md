@@ -1,5 +1,7 @@
 # resume-bench
 
+[![check](https://github.com/mdaxtman/resume-bench/actions/workflows/ci.yml/badge.svg)](https://github.com/mdaxtman/resume-bench/actions/workflows/ci.yml)
+
 A multi-stage resume tailoring pipeline, and the offline harness that measures
 whether the staging actually helps.
 
