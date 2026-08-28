@@ -152,6 +152,47 @@ was also the axis nothing was scoring. The screener stage computed keyword
 coverage and discarded it, and the control arm never ran through the screener at
 all.
 
+### Does redacting the corpus bias the comparison?
+
+The job descriptions here have company and product names replaced. The pipeline
+has a stage that exploits company identity — its fit assessment emits a
+`product_connection` naming a parallel between the candidate's work and what the
+company builds, and the generator writes the summary's "why this person here"
+sentence from it. The control has no equivalent. So redaction plausibly removes a
+pipeline-only capability and understates its advantage, particularly on hire
+intent, which scores whether a document is specific and memorable.
+
+Tested directly: four postings run through both arms against their original
+un-redacted text, with prompts reverted by fingerprint to the state that produced
+the main sweep, so redaction was the only variable.
+
+```
+axis                       redacted   un-redacted     shift
+hire intent                   +0.25         -0.38     -0.62
+jd alignment                  +0.42         +0.25     -0.17
+recruiter readability         +0.17         +0.12     -0.04
+composite                     +0.17         +0.09     -0.08
+```
+
+The mechanism fired — `product_connection` was populated in 5 of 8 un-redacted
+runs against 4 of 12 redacted ones — and the effect ran the other way. The
+pipeline's hire-intent advantage was *lower* with company names present, on all
+four postings (mean shift −0.62, t = −3.96, 3 df; small sample, but consistent in
+sign).
+
+The reason is visible in the documents. With the company named, the control's
+summary reorganised around what that company does — leading with agentic
+orchestration work for an AI-tooling role, which the judge called "exactly the
+profile they are hunting for". The pipeline's summary follows a fixed structure:
+who the candidate is, the product connection, a recurring situation type.
+`product_connection` buys it one sentence of company-specific pitch. The control
+gets the whole document.
+
+So redaction is not suppressing a pipeline edge. It is suppressing a *control*
+edge, which means the published deltas are, if anything, mildly generous to the
+pipeline rather than conservative. The structure that makes the pipeline
+consistent is also what caps it on the axis that rewards being memorable.
+
 ### Is the instrument any good?
 
 Every number above depends on judges that are themselves models. Re-scoring the
