@@ -162,36 +162,43 @@ sentence from it. The control has no equivalent. So redaction plausibly removes 
 pipeline-only capability and understates its advantage, particularly on hire
 intent, which scores whether a document is specific and memorable.
 
-Tested directly: four postings run through both arms against their original
-un-redacted text, with prompts reverted by fingerprint to the state that produced
-the main sweep, so redaction was the only variable.
+Tested directly: four postings through both arms against their original
+un-redacted text, prompts reverted by fingerprint to the state that produced the
+main sweep, so redaction was the only variable.
 
 ```
-axis                       redacted   un-redacted     shift
-hire intent                   +0.25         -0.38     -0.62
-jd alignment                  +0.42         +0.25     -0.17
-recruiter readability         +0.17         +0.12     -0.04
-composite                     +0.17         +0.09     -0.08
+un-redacted, 4 postings, n = 2      pipeline        control    delta
+jd alignment                     8.12 ± 0.60    7.88 ± 0.78    +0.25
+recruiter readability            6.12 ± 0.33    6.00 ± 0.50    +0.12
+authenticity                     9.28 ± 0.15    9.36 ± 0.12    -0.08
+hire intent                      7.38 ± 0.70    7.75 ± 0.66    -0.38
+composite                        8.19 ± 0.24    8.10 ± 0.39    +0.09
 ```
 
-The mechanism fired — `product_connection` was populated in 5 of 8 un-redacted
-runs against 4 of 12 redacted ones — and the effect ran the other way. The
-pipeline's hire-intent advantage was *lower* with company names present, on all
-four postings (mean shift −0.62, t = −3.96, 3 df; small sample, but consistent in
-sign).
+Against the redacted run on the same four postings, the pipeline's hire-intent
+delta moved from +0.25 to −0.38, and it moved in that direction on all four. The
+mechanism did fire: `product_connection` was populated in 5 of 8 un-redacted runs
+against 4 of 12 redacted ones.
 
-The reason is visible in the documents. With the company named, the control's
-summary reorganised around what that company does — leading with agentic
-orchestration work for an AI-tooling role, which the judge called "exactly the
-profile they are hunting for". The pipeline's summary follows a fixed structure:
-who the candidate is, the product connection, a recurring situation type.
-`product_connection` buys it one sentence of company-specific pitch. The control
-gets the whole document.
+**What this supports:** redaction is not costing the pipeline an advantage. The
+worry was reasonable and the effect runs the other way on every posting tested.
 
-So redaction is not suppressing a pipeline edge. It is suppressing a *control*
-edge, which means the published deltas are, if anything, mildly generous to the
-pipeline rather than conservative. The structure that makes the pipeline
-consistent is also what caps it on the axis that rewards being memorable.
+**What it does not support:** any confident account of *why*. Sixteen documents
+at two samples per cell, on integer-valued scores, is thin. The hire-intent gap
+traces largely to one row — a control sample scoring 9.0 against its own
+arm-mate's 8.0 — and dropping it halves the effect. One of the four per-posting
+shifts was −0.17, inside the noise of a coarse scale.
+
+There is a readable explanation in the documents, offered as a hypothesis rather
+than a result: with the company named, the control's summary reorganised around
+what that company does, leading with the candidate's agentic orchestration work
+for an AI-tooling role, which the judge called "exactly the profile they are
+hunting for". The pipeline's summary follows a fixed structure — who the
+candidate is, the product connection, a recurring situation type — so
+`product_connection` buys it one company-specific sentence while the control can
+restructure the whole document. If that is right, the structure that makes the
+pipeline consistent is also what caps it where being memorable is what scores.
+Confirming it needs more postings, not more samples.
 
 ### Is the instrument any good?
 
