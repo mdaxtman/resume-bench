@@ -97,6 +97,8 @@ def _call_once(
             model=response.model,
             tokens_in=response.usage.input_tokens,
             tokens_out=response.usage.output_tokens,
+            cache_write=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
+            cache_read=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
             stop_reason=response.stop_reason,
             latency_ms=latency_ms,
             request={k: v for k, v in kwargs.items()},
@@ -130,6 +132,8 @@ def call_model_text(stage: str, **kwargs: Any) -> str:
             model=response.model,
             tokens_in=response.usage.input_tokens,
             tokens_out=response.usage.output_tokens,
+            cache_write=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
+            cache_read=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
             stop_reason=response.stop_reason,
             latency_ms=latency_ms,
             request={k: v for k, v in kwargs.items()},
@@ -137,6 +141,38 @@ def call_model_text(stage: str, **kwargs: Any) -> str:
             fallback_model=kwargs.get("model"),
         )
     return "".join(b.text for b in response.content if b.type == "text").strip()
+
+
+def cached_system(text: str) -> list[dict[str, Any]]:
+    """A system prompt marked as a cache breakpoint.
+
+    Stage prompts are identical across every call of that stage in a sweep, so
+    they belong in the cached prefix alongside whatever stable content follows.
+    """
+    return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
+
+
+def split_for_cache(stable: str, variable: str) -> list[dict[str, Any]]:
+    """Split a user message into a cached prefix and a per-call tail.
+
+    A cache prefix has to match from the start of the request, so this is only
+    worth doing where the stable content genuinely comes first. In this pipeline
+    the narratives are ~22k tokens and byte-identical across all calls, which is
+    most of the input; where a job description precedes them, the prefix differs
+    per posting and nothing is cacheable without reordering the prompt — which
+    would be a change to what the model sees, not just to how it is billed.
+
+    Concatenating the returned blocks reproduces `stable + variable` exactly. A
+    caching change must never become a prompt change.
+    """
+    if not stable:
+        raise ValueError("cache prefix must not be empty")
+    blocks: list[dict[str, Any]] = [
+        {"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}}
+    ]
+    if variable:
+        blocks.append({"type": "text", "text": variable})
+    return blocks
 
 
 def dict_items(value: object) -> list[dict[str, Any]]:

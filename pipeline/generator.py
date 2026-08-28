@@ -3,7 +3,7 @@
 from typing import Any, cast
 
 from config import PIPELINE_MODEL
-from pipeline.anthropic_utils import call_model, dict_items
+from pipeline.anthropic_utils import cached_system, call_model, dict_items, split_for_cache
 from pipeline.prompts import load_prompt
 
 # Tool schema for Claude tool_use
@@ -211,10 +211,9 @@ def run_generator(
     fit_guidance = _format_fit_report(fit_report)
     contact_text = _format_contact_info(contact_info)
 
-    user_message = (
-        f"<candidate_background>\n{narratives_text}\n</candidate_background>\n\n"
-        f"<fit_assessment>\n{fit_guidance}\n</fit_assessment>\n\n"
-    )
+    # Narratives lead, so they sit in the cached prefix. See split_for_cache.
+    stable = f"<candidate_background>\n{narratives_text}\n</candidate_background>\n\n"
+    user_message = f"<fit_assessment>\n{fit_guidance}\n</fit_assessment>\n\n"
 
     if contact_text:
         user_message += f"<contact_info>\n{contact_text}\n</contact_info>\n\n"
@@ -234,8 +233,8 @@ def run_generator(
         # 8192: full-resume output; same shape as refinement, which truncated
         # at 4096 under the claude-sonnet-5 tokenizer (stop_reason=max_tokens)
         max_tokens=8192,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
+        system=cached_system(system_prompt),
+        messages=[{"role": "user", "content": split_for_cache(stable, user_message)}],
         tools=cast(
             Any,
             [

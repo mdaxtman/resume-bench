@@ -11,13 +11,31 @@ inputs a shared base class, or adding `narratives: str | None = None` to the
 cold-read input so one helper can serve both judges.
 """
 
-import json
 import re
+from typing import Any
 
 import pytest
 
 from evaluation.contracts import AuthenticityInput, ColdReadInput
 from evaluation.judges import build_authenticity_request, build_cold_read_request
+
+
+def all_text(payload: dict[str, Any]) -> str:
+    """Every byte of text a payload sends, regardless of block structure.
+
+    Prompt caching splits system and user content into block lists. Isolation is
+    a property of what reaches the API, so these assertions must read the whole
+    payload rather than a particular shape of it — otherwise a restructuring
+    silently narrows what they check.
+    """
+    out = []
+    for part in (payload.get("system"), *(m["content"] for m in payload["messages"])):
+        if isinstance(part, str):
+            out.append(part)
+        else:
+            out.extend(b["text"] for b in part if b.get("type") == "text")
+    return "\n".join(out)
+
 
 NARRATIVES = "GROUND-TRUTH-SENTINEL: candidate led the 2019 platform migration."
 JD = "Staff Software Engineer. Requires distributed systems experience."
@@ -33,21 +51,21 @@ def test_cold_read_input_cannot_carry_narratives() -> None:
 
 def test_cold_read_request_excludes_narratives() -> None:
     """Nothing traceable to ground truth may reach the blind judge's payload."""
-    payload = json.dumps(build_cold_read_request(ColdReadInput(jd=JD, resume=RESUME_A)))
+    payload = all_text(build_cold_read_request(ColdReadInput(jd=JD, resume=RESUME_A)))
     assert "GROUND-TRUTH-SENTINEL" not in payload
     assert "PIPELINE-ARM-SENTINEL" in payload
 
 
 def test_cold_read_request_excludes_the_other_arm() -> None:
     """Each arm is scored on an absolute scale, never against its competitor."""
-    payload = json.dumps(build_cold_read_request(ColdReadInput(jd=JD, resume=RESUME_A)))
+    payload = all_text(build_cold_read_request(ColdReadInput(jd=JD, resume=RESUME_A)))
     assert "CONTROL-ARM-SENTINEL" not in payload
 
 
 def test_authenticity_request_includes_narratives() -> None:
     """Positive control: the exclusion tests above would be vacuous if the
     sentinel could never appear in a payload at all."""
-    payload = json.dumps(
+    payload = all_text(
         build_authenticity_request(AuthenticityInput(resume=RESUME_A, narratives=NARRATIVES))
     )
     assert "GROUND-TRUTH-SENTINEL" in payload
@@ -73,7 +91,9 @@ def test_cold_read_payload_contains_only_allowed_sections() -> None:
     is permitted means any new section fails the test by default."""
     allowed = {"job_description", "resume"}
     payload = build_cold_read_request(ColdReadInput(jd=JD, resume=RESUME_A))
-    message = payload["messages"][0]["content"]
+    message = "\n".join(
+        b["text"] for b in payload["messages"][0]["content"] if b.get("type") == "text"
+    )
     found = set(re.findall(r"<([a-z_]+)>", message))
     assert found == allowed, f"unexpected sections in blind judge payload: {found - allowed}"
 
@@ -88,5 +108,6 @@ def test_judges_are_told_todays_date() -> None:
         build_cold_read_request(ColdReadInput(jd=JD, resume=RESUME_A)),
         build_authenticity_request(AuthenticityInput(resume=RESUME_A, narratives=NARRATIVES)),
     ):
-        assert today in payload["system"]
-        assert "{today}" not in payload["system"], "placeholder left unsubstituted"
+        text = all_text(payload)
+        assert today in text
+        assert "{today}" not in text, "placeholder left unsubstituted"

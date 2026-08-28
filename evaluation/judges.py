@@ -20,7 +20,7 @@ from evaluation.contracts import (
     ColdReadInput,
     ColdReadScores,
 )
-from pipeline.anthropic_utils import call_model, str_items
+from pipeline.anthropic_utils import cached_system, call_model, split_for_cache, str_items
 
 _COLD_READ_TOOL = "submit_cold_read"
 _AUTHENTICITY_TOOL = "submit_authenticity"
@@ -72,12 +72,27 @@ def _prompt(name: str) -> str:
     return (PROMPTS_DIR / f"{name}.md").read_text().replace("{today}", date.today().isoformat())
 
 
-def _tool_call(prompt_name: str, tool: str, schema: dict[str, Any], message: str) -> dict[str, Any]:
+def _tool_call(
+    prompt_name: str,
+    tool: str,
+    schema: dict[str, Any],
+    message: str,
+    stable: str | None = None,
+) -> dict[str, Any]:
+    """Build a judge request, caching the stage prompt and any stable prefix.
+
+    `stable` is content identical across every call of this judge — the
+    narratives, for the authenticity judge. The cold-read judge has none: it
+    sees only a job description and a resume, both of which vary.
+    """
+    content: Any = (
+        split_for_cache(stable, message) if stable else [{"type": "text", "text": message}]
+    )
     return {
         "model": JUDGE_MODEL,
         "max_tokens": 2048,
-        "system": _prompt(prompt_name),
-        "messages": [{"role": "user", "content": message}],
+        "system": cached_system(_prompt(prompt_name)),
+        "messages": [{"role": "user", "content": content}],
         "tools": [{"name": tool, "description": f"Submit {tool} results", "input_schema": schema}],
         "tool_choice": {"type": "tool", "name": tool},
     }
@@ -102,10 +117,10 @@ def build_authenticity_request(inp: AuthenticityInput) -> dict[str, Any]:
         "judge_authenticity",
         _AUTHENTICITY_TOOL,
         _AUTHENTICITY_SCHEMA,
-        f"<candidate_narratives>\n{inp.narratives}\n</candidate_narratives>\n\n"
         f"<resume>\n{inp.resume}\n</resume>\n\n"
         "Fact-check every claim in this resume against the narratives and submit "
         f"your findings using the {_AUTHENTICITY_TOOL} tool.",
+        stable=f"<candidate_narratives>\n{inp.narratives}\n</candidate_narratives>\n\n",
     )
 
 

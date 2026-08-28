@@ -9,7 +9,7 @@ the structure is the only variable.
 """
 
 from config import PIPELINE_MODEL, PROMPTS_DIR
-from pipeline.anthropic_utils import call_model_text
+from pipeline.anthropic_utils import cached_system, call_model_text, split_for_cache
 
 
 def run_control(jd_content: str, narratives_text: str) -> str:
@@ -18,14 +18,13 @@ def run_control(jd_content: str, narratives_text: str) -> str:
         "control",
         model=PIPELINE_MODEL,
         max_tokens=4096,
-        system=(PROMPTS_DIR / "control.md").read_text(),
+        system=cached_system((PROMPTS_DIR / "control.md").read_text()),
         messages=[
             {
                 "role": "user",
-                "content": (
-                    f"<candidate_narratives>\n{narratives_text}\n</candidate_narratives>\n\n"
-                    f"<job_description>\n{jd_content}\n</job_description>\n\n"
-                    "Write the resume."
+                "content": split_for_cache(
+                    f"<candidate_narratives>\n{narratives_text}\n</candidate_narratives>\n\n",
+                    f"<job_description>\n{jd_content}\n</job_description>\n\nWrite the resume.",
                 ),
             }
         ],
