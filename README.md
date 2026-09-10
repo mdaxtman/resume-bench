@@ -112,6 +112,9 @@ authenticity            +1.78       -0.20     -1.98
 composite               +0.93       +0.14     -0.79
 ```
 
+That is **85% of the measured advantage gone**, on documents that did not change
+by a byte — the difference was entirely in how they were scored.
+
 Almost the entire collapse is one axis, and the absolute means locate it
 precisely: the pipeline arm's authenticity barely moved (9.50 → 9.13) while the
 control arm's rose **+1.61** (7.72 → 9.33).
