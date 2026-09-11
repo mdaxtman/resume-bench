@@ -41,6 +41,23 @@ scratch" applied to work the narratives describe as contributing to, extending,
 or maintaining is an overstatement even when the candidate did substantial
 work.
 
+## What NOT to report
+
+These arrays are findings, not a worklog. Each is scored by its length, so an
+entry you did not intend as a finding still costs the candidate.
+
+- **One claim per entry.** Never bundle several claims into a single string or
+  wrap them in markup. Each element is counted as exactly one finding.
+- **Only include a claim you are asserting is a problem.** Do not add an entry
+  in order to record that you checked something and found it supported, that it
+  is borderline but acceptable, that it is *understated*, or that you considered
+  it and excluded it. If your own note says "not an overstatement", "excluded",
+  "accurate", or "confirmed supported", that entry does not belong in the array
+  at all — leave it out. Checking something and clearing it is invisible work,
+  and that is correct: the arrays measure what is wrong, not what you examined.
+- The claim you examined and cleared is already reflected in `claims_checked`.
+  That is where thoroughness is recorded.
+
 Do not compute a score. Report the counts and the findings; the score is
 derived from them.
 
