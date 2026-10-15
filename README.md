@@ -92,7 +92,7 @@ configs is not a result. Every mean in the report is printed with its spread.
 ## Results
 
 The arm comparison below rests on two experiments, 126 scored documents, `n = 3`
-samples per arm per job. Five later ones change it. The trim experiment — 304
+samples per arm per job. Six later ones change it. The trim experiment — 304
 documents — is under *Does a shorter resume score better?*; a fresh re-run of
 both arms, after a fix that gave the generator inputs it had never received,
 is under *Does the generator get what the fit stage found?*, and finds no
@@ -102,7 +102,12 @@ unresolved lead. *What does the refinement stage do?* finds that lead is all
 refinement's, that refinement gives a single prompt the same gain, and that
 the gain carries a cost in unsupported claims. *Can refinement stop adding
 claims?* finds the cost was the gain: refinement that adds no claims moves no
-score, and without the claims the pipeline trails a single prompt.
+score, and without the claims the pipeline trails a single prompt. *Why does
+the generator say less than a single prompt?* finds that the generator never
+sees the posting and omits whatever the fit report files as a gap. Showing it
+the posting, lifting its cap on skills and naming lighter work at its true
+depth, all together, closes the gap to the single prompt, but adds unsupported
+claims in 2 of 39 documents and is not kept.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -742,6 +747,79 @@ single prompt does. Why is a question for the generator, which is now where any
 advantage would have to come from: screener and refinement cost two calls and,
 made honest, move nothing measurable.
 
+### Why does the generator say less than a single prompt?
+
+Across the 13 postings there are 143 required keywords. Taking one sample of
+each posting, the control has 20 of them that the budgeted draft does not.
+Eleven of those 20 are terms that appear in the narratives *and* in the fit report's matches: the
+generator was handed them and dropped them. HTML, CSS, REST and GraphQL are
+typical, and the control carries each of them only in its skills list, which
+runs to 53 items against the generator's "5-10 key skills". Most of the rest
+are gaps. The fit stage is written to score fit strictly, and by a rough
+count about half of its 204 gaps describe lighter work that is real. "Deep
+GraphQL experience" is filed as a gap where the narratives describe support
+work on an existing GraphQL layer. The generator omits every gap. The bullet budget is not the
+cause: drafts covered 46.9% of required keywords before it and 45.1% after.
+Some of the control's lead is stretching the generator refuses to do:
+"Next.js-adjacent", "A/B-test-ready" and "GCP-adjacent" make three of its 39
+documents untraceable.
+
+Underneath both, the generator never sees the posting. It knows the posting
+only through the fit report's paraphrase, while its request asks for "the
+exact terminology from the JD".
+
+Three changes, each made alone and then all together, on the same 39 saved
+fit reports. **jd**: the generator reads the posting. **skills**: the skills
+list covers what the narratives show the candidate using that a reader of this
+posting would look for, instead of 5–10 items. **gaps**: lighter-but-real work
+is named at the depth the narratives give it, and only absent work is omitted.
+The keep rule was fixed first: at most 1 of 39 documents with an untraceable
+claim, overstatements per claim not demonstrably higher, 39/39 through the
+gate, a jd-alignment gain whose CI excludes zero, and readability not
+demonstrably lower. Each change is compared with a re-run of the unchanged
+generator from the same session. That re-run lands within noise of the
+original drafts (jd −0.13 [−0.46, +0.21]), and the verdict is the same against
+either.
+
+```
+vs unchanged generator   jd alignment            hire     composite               coverage   documents with an
+(paired by job, 13)                                                                          untraceable claim
+unchanged (re-run)       —                       —        —                       —          1
+jd                       +0.23 [-0.03, +0.50]    +0.08    +0.21 [+0.01, +0.42]    +3.4       5
+skills                   -0.15 [-0.38, +0.07]    -0.08    -0.11 [-0.28, +0.06]    +2.3       0
+gaps                     +0.03 [-0.23, +0.28]    +0.00    +0.01 [-0.18, +0.21]    +3.5       0
+all three                +0.49 [+0.22, +0.76]    +0.38    +0.37 [+0.17, +0.58]    +5.5       2
+```
+
+**Together they close the gap to the single prompt; no one of them does.** All
+three together raise jd alignment for 9 postings and lower it for none. Against
+the control they leave jd alignment at −0.08 [−0.22, +0.07] and composite at
++0.04, with readability +0.28 [+0.14, +0.41], 16 fewer claims a document and one
+fewer overstatement. The interaction has a plain reading. The skills and gap
+changes both ask for what "a reader of this posting would look for", which a
+paraphrase of the posting cannot answer, so they pay only once the generator
+can see it.
+
+**None is kept.** All three together carry 2 documents with an untraceable
+claim against a limit of 1. Both are summary sentences built from the fit
+report's `product_connection` ("closely paralleling Go's agent builder"), which
+the current generator also receives. The posting alone does worse, with 5: the
+posting's technologies written in as skills ("S3", "REST API design") and an
+endpoint credited to the wrong stack. The skills change's wording, what "the
+narratives show the candidate using", appears to be what keeps the posting's
+terms out of the claims once all three run together. The experiment is in the
+history (`ab130d1`, reverted in `f6a8396`).
+
+**A draft whose tool call folded into its summary.** Five of 234 budgeted
+drafts across six runs, and 4 of 39 before the bullet budget, arrived with the
+rest of the tool call serialised into `summary`: `</summary>`, then
+`<parameter name="experience">`, then the roles as raw JSON. The rendered resume had no role headings or no Skills section. The
+schema requires both fields, but a tool's input schema is advisory. The
+cold-read judge scored one of these 9.0 on jd alignment, and refinement repairs
+the shape before the final resume is scored, so no sweep showed it. The
+generator now rejects such a draft and retries, as the fit stage already did
+(`23dd851`).
+
 ## Decisions this measurement implies
 
 The results above changed what the scoring design should be. The first two
@@ -801,6 +879,13 @@ Refinement bought +0.38 composite that way, and the gate passed 37 of 39 of its
 documents. Any change that raises jd alignment should be reported with its
 paired change in overstatements and untraceable claims, and a gain that arrives
 with more of either is unproven until a version without them keeps it.
+
+**A document's shape is checked in code, not by a judge.** The cold-read judge
+read a resume whose summary held every role as raw JSON, with no role headings
+below it, and gave it 9.0 on jd alignment and 7.0 on readability with no
+mention of the markup. It reads for content. Whether a stage's output has the
+fields and form it should is a validator's job, at the stage that produced it,
+with a retry.
 
 ## A worked example: an input shape that broke a stage
 
