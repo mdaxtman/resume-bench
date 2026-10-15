@@ -33,3 +33,14 @@ def test_the_system_prompt_defers_to_the_request_for_the_number() -> None:
     system = "".join(b["text"] for b in _request()["system"])
     assert "The request states the most bullets" in system
     assert f"{generator.BULLET_BUDGET} bullets" not in system
+
+
+def test_the_posting_reaches_the_generator_when_given() -> None:
+    """Without it the generator knows the posting only through the fit
+    assessment's paraphrase, while its request asks for the JD's exact terms."""
+    with patch.object(generator, "call_model", return_value={}) as call:
+        generator.run_generator("narratives", {"matches": []}, None, jd="Posting text")
+    text = _user_text(dict(call.call_args.kwargs))
+    assert "<job_description>\nPosting text\n</job_description>" in text
+    assert text.index("<job_description>") < text.index("<fit_assessment>")
+    assert "<job_description>" not in _user_text(_request())
