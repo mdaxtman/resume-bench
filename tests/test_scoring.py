@@ -154,3 +154,14 @@ def test_the_report_states_gate_failures() -> None:
     rows.append(_scored("control", 9.5, 6.0))
     out = render("gate-sweep", rows)
     assert "1/1" in out and "1/2" in out
+
+
+def test_a_single_arm_sweep_does_not_report_a_delta_against_nothing() -> None:
+    """`--arms pipeline` is the documented way to run a before/after. Its report
+    printed the absent control as 0.00 and the pipeline's own mean as a delta."""
+    from evaluation.report import render
+
+    out = render("one-arm", [_scored("pipeline", 9.5, 6.0)])
+    assert "0.00 ± 0.00" not in out
+    assert "+6.00" not in out and "+8.00" not in out
+    assert "Per-JD record" not in out

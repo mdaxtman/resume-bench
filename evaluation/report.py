@@ -96,28 +96,36 @@ def render(sweep_id: str, rows: list[dict[str, Any]]) -> str:
         "─" * 78,
         f"{'Axis':<24}{'Pipeline':>18}{'Control':>18}{'Delta':>12}",
     ]
+    both = "pipeline" in summary and "control" in summary
     for axis in AXES:
-        p_mean, p_sd = summary.get("pipeline", {}).get(axis, (0.0, 0.0))
-        c_mean, c_sd = summary.get("control", {}).get(axis, (0.0, 0.0))
         label = axis.replace("_", " ")
         if axis == "hire_intent":
             label += " *"
+        cells = []
+        for arm in ("pipeline", "control"):
+            mean, sd = summary.get(arm, {}).get(axis, (0.0, 0.0))
+            cells.append(f"{mean:.2f} ± {sd:.2f}" if arm in summary else "—")
+        # A single-arm sweep (`--arms pipeline`) has nothing to subtract from.
+        delta = summary["pipeline"][axis][0] - summary["control"][axis][0] if both else None
         lines.append(
-            f"{label:<24}{f'{p_mean:.2f} ± {p_sd:.2f}':>18}"
-            f"{f'{c_mean:.2f} ± {c_sd:.2f}':>18}{p_mean - c_mean:>+12.2f}"
+            f"{label:<24}{cells[0]:>18}{cells[1]:>18}"
+            + (f"{delta:>+12.2f}" if delta is not None else f"{'—':>12}")
         )
 
-    wins, losses, ties = per_jd_record(rows)
     gate = gate_record(rows)
     lines += [
         "─" * 78,
         f"Authenticity gate (>= {AUTHENTICITY_GATE}): "
         + "   ".join(f"{arm} {passed}/{total}" for arm, (passed, total) in gate.items())
         + " passed; means are over passing documents",
-        f"Per-JD record (pipeline): {wins}W-{losses}L-{ties}T   "
-        f"(a JD is a tie when |delta| <= 0.1)",
-        "* hire intent is reported, not folded into the composite.",
     ]
+    if both:
+        wins, losses, ties = per_jd_record(rows)
+        lines.append(
+            f"Per-JD record (pipeline): {wins}W-{losses}L-{ties}T   "
+            f"(a JD is a tie when |delta| <= 0.1)"
+        )
+    lines.append("* hire intent is reported, not folded into the composite.")
     return "\n".join(lines)
 
 
