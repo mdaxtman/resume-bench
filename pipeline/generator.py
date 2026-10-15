@@ -157,6 +157,24 @@ def _format_fit_report(fit_report: dict[str, Any]) -> str:
             jd_term = term.get("jd_term", "")
             lines.append(f"  - {my_term} → {jd_term}")
 
+    # CULTURAL SIGNALS and PRODUCT CONNECTION: the generator prompt has a section
+    # for each, and neither was forwarded until the fit-guidance tests caught it.
+    signals = dict_items(fit_report.get("cultural_signals"))
+    if signals:
+        lines.append(
+            "\nCULTURAL SIGNALS — qualities this company values beyond its requirements "
+            "(evidence each only with a real experience from the narratives):"
+        )
+        for signal in signals:
+            quality = signal.get("quality", "")
+            jd_signal = signal.get("jd_signal", "")
+            hint = signal.get("evidence_hint", "")
+            lines.append(f'  - {quality} — JD signal: "{jd_signal}"; where to look: {hint}')
+
+    connection = fit_report.get("product_connection")
+    if isinstance(connection, str) and connection.strip():
+        lines.append(f"\nPRODUCT CONNECTION (product_connection):\n  {connection.strip()}")
+
     return "\n".join(lines)
 
 
