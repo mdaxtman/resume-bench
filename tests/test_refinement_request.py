@@ -51,3 +51,25 @@ def test_the_pipeline_hands_refinement_the_draft_the_screener_read() -> None:
     screened = screener.call_args.args[1]
     assert refine.call_args.args[0] == screened == artefacts["draft"]
     assert resume == "done"
+
+
+def _refine_request() -> dict[str, Any]:
+    with patch.object(refinement, "call_model", return_value={"refined_content": ""}) as call:
+        refinement.run_refinement("draft", {}, "narratives", "jd")
+    return dict(call.call_args.kwargs)
+
+
+def test_the_add_nothing_rule_is_the_last_thing_refinement_reads() -> None:
+    """Refinement added claims its system prompt forbade. Restated last, with a
+    closed list of edits, it added none."""
+    text = _refine_request()["messages"][0]["content"]
+    assert text.rstrip().endswith(refinement.ADD_NOTHING)
+
+
+def test_screener_mappings_are_suggestions_and_substitutions_cite_evidence() -> None:
+    """The screener cannot see the narratives and maps adjacent work as
+    equivalent; refinement applied its mappings as instructions."""
+    request = _refine_request()
+    assert "suggestions to check, not instructions" in request["system"]
+    item = request["tools"][0]["input_schema"]["properties"]["changes_made"]["items"]
+    assert "narrative_evidence" in item["properties"]
