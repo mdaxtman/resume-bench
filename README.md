@@ -92,7 +92,7 @@ configs is not a result. Every mean in the report is printed with its spread.
 ## Results
 
 The arm comparison below rests on two experiments, 126 scored documents, `n = 3`
-samples per arm per job. Four later ones change it. The trim experiment — 304
+samples per arm per job. Five later ones change it. The trim experiment — 304
 documents — is under *Does a shorter resume score better?*; a fresh re-run of
 both arms, after a fix that gave the generator inputs it had never received,
 is under *Does the generator get what the fit stage found?*, and finds no
@@ -100,7 +100,9 @@ pipeline advantage at all; a bullet budget in the generator, under *Does a
 bullet budget in the generator help?*, raises readability and restores a small,
 unresolved lead. *What does the refinement stage do?* finds that lead is all
 refinement's, that refinement gives a single prompt the same gain, and that
-the gain carries a cost in unsupported claims.
+the gain carries a cost in unsupported claims. *Can refinement stop adding
+claims?* finds the cost was the gain: refinement that adds no claims moves no
+score, and without the claims the pipeline trails a single prompt.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -664,7 +666,8 @@ on composite, jd alignment and hire intent. The pipeline's one remaining edge is
 readability, and that comes from the bullet budget, a rule in the generator's
 prompt that the control prompt could carry as easily. By the rule fixed before
 this ran, the fit assessment and the fit-guided generator do not earn their two
-calls: the measurable value is a keyword pass that any draft can be given.
+calls: the measurable value is a keyword pass that any draft can be given — and
+the next section finds that the pass's value was the claims it added.
 
 **What this does not show.** jd alignment is scored by a model reading the
 posting, which is the axis most open to a document that repeats the posting's
@@ -672,6 +675,72 @@ terms; whether a recruiter rewards the added clauses as the judge does is not
 measured here. The authenticity cost is measured, and in use it is the part an
 interviewer would find. The control comparisons pair documents from two sweeps
 generated under the same conditions, not from one. One judgement per document.
+
+### Can refinement stop adding claims?
+
+Refinement's prompt already said it "may not add experience, capabilities, or
+claims". Its own change logs show how claims got in anyway, each entry noting
+"no new claim": a posting's term attached to adjacent work, new skills and
+category labels, new summary sentences, clauses that tie a bullet to a concern
+of the posting. Many of the mappings come from the screener, which cannot see
+the narratives and marks adjacent work as equivalent at confidence 0.8 or
+higher — "an AI-generated DSL parsed into an AST" as "prompt engineering".
+
+Two variants, run on the same 39 drafts and screener reports. The **strict
+prompt** replaces refinement's instructions with a closed list of edits:
+substitute a term only with a narrative sentence quoted as evidence, tighten
+overstated claims, fix hygiene. The screener's mappings become suggestions to
+check, everything else is ruled out, and the rule is restated as the last line
+of the request. The **edit list** has refinement submit edits instead of a
+resume, and code applies them, rejecting any that span lines, match more or
+fewer than one place, grow their span by more than a few words, or quote
+evidence that is not in the narratives. The rule, fixed first: a variant stops
+adding claims if at most 1 of 39 documents carries an untraceable claim, its
+overstatements are not demonstrably above the draft's, and all 39 pass the
+gate. Of those that pass, the higher composite is kept, and on a tie the simpler.
+
+```
+same 39 drafts      overstatements   documents with an   gated   jd alignment vs draft   hire    composite
+                    a document       untraceable claim
+draft                    2.31               0              0       —                       —       —
+previous prompt          3.46               7              2      +0.59 [+0.35, +0.82]    +0.36   +0.38
+strict prompt            2.31               1              0      +0.00 [-0.22, +0.22]    +0.05   -0.03
+edit list                2.13               2              0      -0.15 [-0.33, +0.02]    -0.03   -0.13
+```
+
+**The strict prompt stops it, and is kept.** Its overstatements match the
+draft's exactly, one document in 39 carries an untraceable claim, and the gate
+holds. It still edits — about four changes a document, 134 of 137 citing a
+narrative sentence. The edit list misses the rule on untraceable documents,
+trails the strict prompt on jd alignment and composite, and is the larger
+change; it is in the history (`f1927fe`), not the code.
+
+**With the claims gone, so is the gain.** Against the drafts it edits, the
+strict prompt moves jd alignment +0.00, hire intent +0.05, composite −0.03.
+Every point refinement added to jd alignment and hire intent arrived with the
+claims it added. That is what the cold-read judge should do with them: it reads
+the resume against the posting and, by design, never sees the narratives, so an
+unsupported claim of a required skill reads to it as the skill. The authenticity
+gate is the only check, and at 8.5 it passed 37 of the 39 documents that carried
+the claims.
+
+**The honest pipeline trails a single prompt.** With refinement adding nothing,
+the pipeline scores as its draft does:
+
+```
+pipeline (strict refinement) - control, paired by job (13)
+jd alignment        -0.44 [-0.73, -0.15]
+hire intent         -0.28 [-0.58, +0.01]
+composite           -0.24 [-0.46, -0.01]
+```
+
+The control is not winning the same way. Its overstatements per claim match the
+draft's (7.1% against 7.5%); it makes more claims — 51 a document against 31 —
+in a longer document, and covers more of the posting (55% of required keywords
+against 45%). The fit-guided generator says less about the candidate than a
+single prompt does. Why is a question for the generator, which is now where any
+advantage would have to come from: screener and refinement cost two calls and,
+made honest, move nothing measurable.
 
 ## Decisions this measurement implies
 
@@ -724,6 +793,14 @@ fact-checking every claim against 22k tokens of ground truth is exactly where it
 might matter. And the narratives are 67% of every sweep's input tokens, identical
 across all 351 calls of a full run — the shape prompt caching exists for, and
 unused, because the code came from an application that ran one request at a time.
+
+**A jd-alignment gain needs its overstatements read beside it.** The cold-read
+judge cannot see the narratives — that isolation is the point of it — so a stage
+that claims a required skill without support scores as if the candidate had it.
+Refinement bought +0.38 composite that way, and the gate passed 37 of 39 of its
+documents. Any change that raises jd alignment should be reported with its
+paired change in overstatements and untraceable claims, and a gain that arrives
+with more of either is unproven until a version without them keeps it.
 
 ## A worked example: an input shape that broke a stage
 
