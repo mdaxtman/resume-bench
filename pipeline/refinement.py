@@ -59,43 +59,23 @@ _REFINEMENT_SCHEMA = {
 }
 
 
-def _format_resume_for_screener(resume_data: dict[str, Any]) -> str:
-    """Format generated resume back into text for screener analysis."""
-    lines = []
-    if resume_data.get("summary"):
-        lines.append(f"## Summary\n{resume_data['summary']}")
-    if resume_data.get("experience"):
-        lines.append("## Experience")
-        for job in resume_data["experience"]:
-            lines.append(f"**{job['title']}** at {job['company']} ({job['dates']})")
-            for project in job.get("projects", []):
-                project_line = f"**{project['name']}"
-                if project.get("dates"):
-                    project_line += f"** ({project['dates']})"
-                else:
-                    project_line += "**"
-                lines.append(project_line)
-                for bullet in project.get("bullets", []):
-                    lines.append(f"- {bullet}")
-    if resume_data.get("skills"):
-        lines.append(f"## Skills\n{', '.join(resume_data['skills'])}")
-    if resume_data.get("education"):
-        lines.append("## Education")
-        for edu in resume_data["education"]:
-            lines.append(f"- {edu['name']}: {edu['degree']} ({edu['year']})")
-    return "\n\n".join(lines)
-
-
 def run_refinement(
-    resume_data: dict[str, Any],
+    draft: str,
     screener_report: dict[str, Any],
     narratives_text: str,
     jd_content: str,
 ) -> RefinementOutput:
     """Step 3: Refinement perspective — improve resume while preserving voice.
 
+    Refinement edits the rendered draft — the document the screener read. It
+    used to receive its own reformatting of the structured draft, which wrote
+    every role as a bold line indistinguishable from a project name; refinement
+    copied that layout into every document of a sweep whose draft had role
+    headings (38 of 38), and a re-run on the rendered drafts raised structure
+    +0.33 with nothing else moving.
+
     Args:
-        resume_data: Structured resume from generator
+        draft: Rendered markdown draft from the generator
         screener_report: Screener analysis output
         narratives_text: Candidate narratives for voice reference
         jd_content: Job description
@@ -107,11 +87,10 @@ def run_refinement(
         RuntimeError: If API call fails or no tool response found
     """
     system_prompt = load_prompt("refinement")
-    resume_text = _format_resume_for_screener(resume_data)
 
     user_message = (
         f"<job_description>\n{jd_content}\n</job_description>\n\n"
-        f"<generated_resume>\n{resume_text}\n</generated_resume>\n\n"
+        f"<generated_resume>\n{draft}\n</generated_resume>\n\n"
         f"<screener_feedback>\n{screener_report}\n</screener_feedback>\n\n"
         f"<candidate_narratives>\n{narratives_text}\n</candidate_narratives>\n\n"
         "Refine the resume using the screener feedback while preserving authentic voice "

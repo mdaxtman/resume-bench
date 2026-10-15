@@ -84,7 +84,7 @@ def generate_pipeline_arm(
     resume_data = run_generator(narratives, fit, contact)
     draft = build_resume_markdown(resume_data)
     screener = run_screener(jd, draft)
-    refined = run_refinement(resume_data, dict(screener), narratives, jd)
+    refined = run_refinement(draft, dict(screener), narratives, jd)
     return refined["refined_content"], {"fit": fit, "screener": screener, "draft": draft}
 
 
