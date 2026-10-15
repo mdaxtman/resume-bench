@@ -172,8 +172,25 @@ def readability_score(parts: dict[str, float]) -> float:
     return round(sum(parts[p] for p in READABILITY_PARTS) / len(READABILITY_PARTS), 2)
 
 
+def cold_read_valid(result: dict[str, Any]) -> bool:
+    """Every score field present, numeric, and in range.
+
+    The schema is advisory. One live response flattened its notes into the top
+    level, leaving prose where `hire_intent` belonged; without this check that
+    fails the document instead of retrying the call.
+    """
+    for key in ("jd_alignment", "hire_intent", *(f"readability_{p}" for p in READABILITY_PARTS)):
+        try:
+            value = float(result[key])
+        except (KeyError, TypeError, ValueError):
+            return False
+        if not 0.0 <= value <= 10.0:
+            return False
+    return True
+
+
 def run_cold_read(inp: ColdReadInput, stage: str = "judge_cold_read") -> ColdReadScores:
-    result = call_model(stage, **build_cold_read_request(inp))
+    result = call_model(stage, validate=cold_read_valid, attempts=3, **build_cold_read_request(inp))
     parts = {
         p: float(result[f"readability_{p}"])
         for p in READABILITY_PARTS

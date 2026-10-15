@@ -10,7 +10,12 @@ where it is deterministic, the same policy as authenticity.
 import pytest
 
 from evaluation.contracts import ColdReadInput
-from evaluation.judges import READABILITY_PARTS, build_cold_read_request, readability_score
+from evaluation.judges import (
+    READABILITY_PARTS,
+    build_cold_read_request,
+    cold_read_valid,
+    readability_score,
+)
 
 
 def test_readability_is_the_mean_of_its_parts() -> None:
@@ -41,3 +46,33 @@ def test_the_judge_is_asked_for_parts_and_not_for_a_holistic_score() -> None:
     assert {f"readability_{p}" for p in READABILITY_PARTS} <= fields
     assert "recruiter_readability" not in fields
     assert set(schema["required"]) >= {f"readability_{p}" for p in READABILITY_PARTS}
+
+
+def _valid() -> dict[str, object]:
+    return {
+        "jd_alignment": 8,
+        "readability_opening": 6,
+        "readability_scannability": 6,
+        "readability_economy": 5,
+        "readability_structure": 7,
+        "hire_intent": 7,
+        "notes": {},
+    }
+
+
+def test_a_well_formed_cold_read_is_accepted() -> None:
+    assert cold_read_valid(_valid())
+
+
+def test_note_text_in_a_score_field_is_rejected() -> None:
+    """Observed live in trim-01: the judge flattened its notes into the top
+    level, putting prose where `hire_intent` belonged and dropping the number.
+    Rejecting it lets the call retry instead of failing the document."""
+    flattened = _valid() | {"hire_intent": "The depth of ownership (sole frontend engineer..."}
+    assert not cold_read_valid(flattened)
+
+
+def test_a_missing_or_out_of_range_score_is_rejected() -> None:
+    missing = {k: v for k, v in _valid().items() if k != "readability_economy"}
+    assert not cold_read_valid(missing)
+    assert not cold_read_valid(_valid() | {"jd_alignment": 11})
