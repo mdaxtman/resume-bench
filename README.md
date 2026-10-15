@@ -69,9 +69,10 @@ structure — and is their mean, computed in Python. The judge never reports a
 holistic readability number. The single number it replaced sat at 6.0 for 80%
 of documents, and nothing could say which property of a document held it there.
 
-Every result reported below was produced under the earlier scoring — `0.4 x
-jd_alignment + 0.2 x readability + 0.4 x authenticity`, with holistic readability
-— and is not comparable with numbers produced under this one.
+Results reported before *Does a shorter resume score better?* were produced under
+the earlier scoring — `0.4 x jd_alignment + 0.2 x readability + 0.4 x
+authenticity`, with holistic readability — and are not comparable with
+numbers produced under this one.
 
 Authenticity is length-normalised. The judge reports counts — claims checked,
 untraceable claims, overstatements — and the score is computed in Python, so
@@ -87,12 +88,14 @@ configs is not a result. Every mean in the report is printed with its spread.
 
 ## Results
 
-Two experiments, 126 scored documents, `n = 3` samples per arm per job.
+The arm comparison rests on two experiments, 126 scored documents, `n = 3`
+samples per arm per job. A third, the trim experiment — 304 documents — is under
+*Does a shorter resume score better?*
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
 identical to ones an earlier scoring pass had already graded, re-judged under
-the current rubric. The second exists because a fresh sweep varies the documents
+the length-normalised rubric. The second exists because a fresh sweep varies the documents
 *and* the ruler at once and so cannot attribute a change to either.
 
 ### The measured advantage is small and not significant
@@ -339,6 +342,85 @@ sensitive to the range it is computed over, so these are lower bounds for axes
 whose documents happen to cluster; nothing in the corpus scores above 7.0 on
 readability, so the top of that scale is untested.
 
+### Does a shorter resume score better?
+
+Every document either arm had produced was 950–1,450 words with about 30
+bullets. Length had never been varied, so the readability ceiling above could as
+easily have been a property of the length as of the documents. `trim` tests
+that directly: each of the 76 full-sweep documents is scored untrimmed and cut
+to 800, 600 and 450 words by removing whole bullets — lowest-relevance first,
+never rewording one. Wording is held fixed; selection and length vary. 304
+documents, scored with readability in parts and authenticity as a gate. All 304
+passed the gate.
+
+```
+both arms, delta vs untrimmed, paired by job (13), mean [95% CI]
+                    800 words (-31%)      600 words (-48%)      450 words (-62%)
+jd alignment       -0.04 [-0.21,+0.13]   -0.20 [-0.38,-0.02]   -0.54 [-0.73,-0.35]
+readability        +0.20 [+0.09,+0.31]   +0.14 [-0.03,+0.31]   -0.27 [-0.46,-0.08]
+  economy          +0.48 [+0.34,+0.62]   +0.76 [+0.58,+0.95]   +0.62 [+0.37,+0.86]
+  scannability     +0.14 [+0.04,+0.24]   +0.10 [-0.09,+0.29]   -0.14 [-0.32,+0.04]
+  structure        -0.04 [-0.23,+0.14]   -0.36 [-0.59,-0.14]   -1.25 [-1.53,-0.97]
+hire intent        -0.01 [-0.17,+0.15]   -0.34 [-0.56,-0.12]   -0.86 [-1.12,-0.60]
+keyword coverage   -0.6pp                -0.9pp                -2.6pp
+composite          +0.04 [-0.10,+0.18]   -0.09 [-0.25,+0.08]   -0.45 [-0.63,-0.27]
+```
+
+**A third of every resume is free to cut, and nothing past that is.** At 800
+words — thirteen fewer bullets — jd alignment and hire intent do not move, and
+readability rises by a fifth of a point. Below that the cost appears and grows:
+hire intent falls on 10 of 13 jobs at 600 words, and at 450 on 11 while rising
+on none. The judges name the cause. Notes citing thin evidence go from 3 of 76
+documents untrimmed to 8 at 600 words and 27 at 450. Both arms trace the same
+shape separately.
+
+**The peak is too flat to search for.** The best condition beats the untrimmed
+document by +0.04 composite, inside an interval that spans zero. A search that
+prunes bullets until a score peaks would be climbing a plateau: the only slope
+this experiment can resolve points down.
+
+**Readability's ceiling is the bullets, not the length.** Economy — whether every
+bullet earns its place — is the part trimming is built to move, and it moves
+most (+0.76 at 600 words). Untrimmed, the two lowest parts are economy (5.74)
+and scannability (5.76) — whether each bullet reads at a glance. Trimming lifts
+the first and cannot reach the second, because no bullet is reworded:
+scannability stays between 5.6 and 5.9 in every condition, and at 800 and 600
+words it is the lowest part. That is where the remaining headroom is, and it is
+a writing problem rather than a selection one. For scale, the generator change
+that targeted bullet shape moved readability +0.53 on the earlier ruler, more
+than any length did here.
+
+**The control part caught the judge's overall impression.** Removing bullets
+should not raise scannability. The trim removed *shorter* bullets than it kept
+(24.5 against 30.2 words), so a real change would run the other way — yet it rose
++0.14 at 800 words, on 7 of 13 jobs and down on none. Part of the readability
+gain at 800 words is therefore the judge's impression of a shorter document
+rather than a property of it. The economy gain is the part with a mechanism
+behind it.
+
+**What this does not show.** The trim keeps every role's dated header so the
+timeline is intact, which leaves two or three roles per document with a header
+and no bullets. Judges remark on that in 16 of 76 documents at 800 words and 29
+at 450. A real 450-word resume would fold its oldest roles into one line, so part
+of the structure decline at 600 and 450 words belongs to the method rather than
+to length. The hire-intent and alignment declines do not — those notes cite
+missing evidence. The relevance rater and the judges are the same model, which if
+anything favours trimming. The sources are the full sweep's documents, generated
+before the generator was tuned, and their ~100-word summaries are never trimmed.
+One judgement per document.
+
+**The readability parts are reliable.** Eight documents, four repeats each:
+readability ICC 0.97 with a within-document sd of 0.13, against 0.81 and 0.18 for
+the holistic score it replaced; each part 0.92–0.94. These documents span
+readability 4.5–6.8, wider than the earlier 5.0–6.0, and ICC rises with range, so
+the within-document sd is the fairer comparison.
+
+**The arm comparison survives the new scoring.** The untrimmed condition is the
+full sweep re-scored under the gate and readability parts. Pipeline minus
+control, paired by job: composite +0.09 [−0.24, +0.41], keyword coverage +5.3pp
+[−0.2, +10.9]. The same small, unresolved advantage as before, measured with
+authenticity out of the composite rather than holding 40% of it.
+
 ## Decisions this measurement implies
 
 The results above changed what the scoring design should be. The first two
@@ -366,7 +448,8 @@ t-statistic from 1.60 to 1.75 — marginally more sensitive, not decisive, becau
 removing a near-constant term rescales the delta and its error together.
 
 **Readability may have a ceiling rather than a noise problem.** *Decomposition
-implemented.* The obvious inference from 80% of documents scoring 6.0 was a
+implemented; the trim experiment locates the ceiling in bullet scannability, not
+length.* The obvious inference from 80% of documents scoring 6.0 was a
 miscalibrated rubric, and the reliability measurement contradicted it: the judge
 reproduces its own score to within 0.18. So the compression is real. But nothing
 in either corpus has ever scored above 7.0, so the top two bands are untested
@@ -461,6 +544,16 @@ the change is.
 Terms are extracted once per posting, cached, and applied identically to both
 arms. Only the extraction costs anything; the matching is pure.
 
+**`trim`** takes the documents of an existing sweep and scores each untrimmed
+and at several word budgets, removing whole bullets verbatim and never rewording
+one — so selection and length vary while wording does not. `trim-report` prints
+each condition and its delta against the untrimmed original, paired by job.
+
+```bash
+uv run python -m cli trim --source full-01 --sweep-id trim-01 --budgets 800 600 450
+uv run python -m cli trim-report --sweep-id trim-01
+```
+
 **`rescore`** scores an existing archive of resumes under the current judges,
 holding the documents fixed so that only the ruler varies. Documents are
 anonymised first — any leading heading is stripped, because an archived baseline
@@ -476,6 +569,10 @@ runs/<sweep>/<jd>/<arm>/sample-<n>/
     coverage.json      keyword coverage, if computed
     artefacts.json     fit report, screener report, pre-refinement draft
     trace.jsonl        every model call: tokens, latency, stop reason, full envelope
+
+runs/<trim>/<jd>/<arm>-<budget>/sample-<n>/
+    trim.json          budget, words, and every bullet removed with its rating
+    relevance.json     per-bullet relevance ratings (untrimmed condition only)
 ```
 
 The trace is what made a reproducible tool-call failure diagnosable at all. A
