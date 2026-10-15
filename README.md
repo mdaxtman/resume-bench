@@ -88,9 +88,12 @@ configs is not a result. Every mean in the report is printed with its spread.
 
 ## Results
 
-The arm comparison rests on two experiments, 126 scored documents, `n = 3`
-samples per arm per job. A third, the trim experiment — 304 documents — is under
-*Does a shorter resume score better?*
+The arm comparison below rests on two experiments, 126 scored documents, `n = 3`
+samples per arm per job. Two later ones change it. The trim experiment — 304
+documents — is under *Does a shorter resume score better?*; a fresh re-run of
+both arms, after a fix that gave the generator inputs it had never received,
+is under *Does the generator get what the fit stage found?*, and finds no
+pipeline advantage at all.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -179,8 +182,9 @@ all.
 The job descriptions here have company and product names replaced. The pipeline
 has a stage that exploits company identity — its fit assessment emits a
 `product_connection` naming a parallel between the candidate's work and what the
-company builds, and the generator writes the summary's "why this person here"
-sentence from it. The control has no equivalent. So redaction plausibly removes a
+company builds, and the generator is meant to write the summary's "why this
+person here" sentence from it — though, as the correction below records, it
+never received it. The control has no equivalent. So redaction plausibly removes a
 pipeline-only capability and understates its advantage, particularly on hire
 intent, which scores whether a document is specific and memorable.
 
@@ -199,8 +203,8 @@ composite                        8.19 ± 0.24    8.10 ± 0.39    +0.09
 
 Against the redacted run on the same four postings, the pipeline's hire-intent
 delta moved from +0.25 to −0.38, and it moved in that direction on all four. The
-mechanism did fire: `product_connection` was populated in 5 of 8 un-redacted runs
-against 4 of 12 redacted ones.
+fit stage did produce the field: `product_connection` was populated in 5 of 8
+un-redacted runs against 4 of 12 redacted ones. It did not reach the generator.
 
 **What this supports:** redaction is not costing the pipeline an advantage. The
 worry was reasonable and the effect runs the other way on every posting tested.
@@ -221,6 +225,18 @@ candidate is, the product connection, a recurring situation type — so
 restructure the whole document. If that is right, the structure that makes the
 pipeline consistent is also what caps it where being memorable is what scores.
 Confirming it needs more postings, not more samples.
+
+**Correction.** The generator never received `product_connection`, nor the fit
+report's cultural signals, in this experiment or in any other run reported
+before *Does the generator get what the fit stage found?*. `_format_fit_report`
+forwarded matches, gaps and terminology only — a gap present since the first
+commit. So the capability this experiment set out to protect was not operating.
+The measurement stands as a description of the pipeline as it ran. The
+explanation in the paragraph above does not: the pipeline's summary was never
+written from a product connection, so it cannot have been capped at one
+company-specific sentence by it. With the input now connected, the original
+worry is live again — redaction may now remove something the pipeline uses —
+and this experiment needs re-running.
 
 ### Is the instrument any good?
 
@@ -419,7 +435,69 @@ the within-document sd is the fairer comparison.
 full sweep re-scored under the gate and readability parts. Pipeline minus
 control, paired by job: composite +0.09 [−0.24, +0.41], keyword coverage +5.3pp
 [−0.2, +10.9]. The same small, unresolved advantage as before, measured with
-authenticity out of the composite rather than holding 40% of it.
+authenticity out of the composite rather than holding 40% of it. These are the
+original documents; a fresh generation after the fit fix below finds none.
+
+### Does the generator get what the fit stage found?
+
+It did not, until this was written. The fit stage produces cultural signals and
+a `product_connection`, and the generator prompt has a section for each — find a
+real experience for every cultural signal; take the summary's second sentence
+from the product connection. `_format_fit_report` forwarded matches, gaps and
+terminology only, so both sections acted on inputs that never arrived, from the
+first commit until this fix. Nothing failed: a missing section reads to the
+model as an assessment that found none. The product repository carries the same
+formatter and had the same gap.
+
+With the inputs connected they visibly arrive: 26 of 39 fit reports carried a
+product connection, and summaries now draw on it — for a defense-tech lead role,
+"a close architectural parallel to a command-and-control (C2) interface". What
+they do not do is move a score.
+
+```
+pipeline arm, before vs after the fix — 13 jobs, n = 3, paired by job
+                    before    after    delta [95% CI]
+hire intent           7.05     7.15    +0.10 [-0.19, +0.39]
+jd alignment          7.64     7.59    -0.05 [-0.28, +0.18]
+readability           6.35     6.26    -0.10 [-0.33, +0.13]
+  scannability        5.97     5.77    -0.21 [-0.40, -0.01]
+keyword coverage     60.4%    59.9%    -0.5pp
+composite             7.21     7.15    -0.07 [-0.27, +0.14]
+```
+
+Hire intent — the axis a company-specific "why this person here" sentence is
+aimed at — moved a tenth of a point inside an interval of ±0.3. Thirteen jobs
+cannot see an effect smaller than that, so the honest statement is that the
+mechanism is worth less than a third of a point if it is worth anything. That
+fits what the job-level variance already showed: most of hire intent is the fit
+between candidate and posting, which no sentence in the summary changes.
+
+**The arm comparison, re-run from scratch.** With the fix in, both arms were
+generated fresh and scored under the gate and readability parts.
+
+```
+fresh sweep, pipeline minus control — 13 jobs, n = 3, paired by job
+composite           -0.02 [-0.15, +0.12]   record 5W-5L-3T
+jd alignment        +0.03 [-0.15, +0.20]
+hire intent         -0.10 [-0.31, +0.11]
+  opening           -0.28 [-0.42, -0.14]   pipeline lower on 9 jobs, higher on none
+  structure         -0.26 [-0.42, -0.09]   pipeline lower on 9 jobs, higher on 1
+keyword coverage    +4.8pp [-2.5, +12.0]
+```
+
+The small composite lead every earlier comparison found is gone, and two
+readability parts now favour the control. Both have candidate mechanisms in the
+documents, offered as hypotheses rather than results. The control's summaries
+run 90 words to the pipeline's 73, and opening is scored on the summary. And
+the refinement stage rewrites the generator's `###` role headings as bold lines
+in 36 of 39 documents, while all 39 control documents keep their headings;
+structure is scored on how findable the roles and dates are.
+
+Refinement also adds 72 words to the average document (range −22 to +221),
+mostly trailing keyword clauses — "…, strengthening WCAG compliance" — on
+bullets the generator was told to keep to one clause. That is plausibly where
+the pipeline's keyword-coverage edge comes from, and plausibly part of what it
+costs. The refinement stage is the next thing to test on its own.
 
 ## Decisions this measurement implies
 
