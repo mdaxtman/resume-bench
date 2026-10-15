@@ -27,12 +27,22 @@ _AUTHENTICITY_TOOL = "submit_authenticity"
 
 _SCORE = {"type": "number", "minimum": 0, "maximum": 10}
 
+# Readability is scored in parts and combined in Python. The holistic axis sat
+# at 6.0 for 80% of documents while the judge reproduced its own score to within
+# 0.18 — real compression, but undiagnosable as one number.
+READABILITY_PARTS = ("opening", "scannability", "economy", "structure")
+
 _COLD_READ_SCHEMA: dict[str, Any] = {
     "type": "object",
-    "required": ["jd_alignment", "recruiter_readability", "hire_intent", "notes"],
+    "required": [
+        "jd_alignment",
+        *(f"readability_{p}" for p in READABILITY_PARTS),
+        "hire_intent",
+        "notes",
+    ],
     "properties": {
         "jd_alignment": _SCORE,
-        "recruiter_readability": _SCORE,
+        **{f"readability_{p}": _SCORE for p in READABILITY_PARTS},
         "hire_intent": _SCORE,
         "notes": {
             "type": "object",
@@ -147,12 +157,33 @@ def authenticity_score(claims_checked: int, untraceable: int, overstatements: in
     return round(max(0.0, 10.0 * (1.0 - penalty / worst_case)), 2)
 
 
+def readability_score(parts: dict[str, float]) -> float:
+    """Unweighted mean of the four readability parts, 0–10.
+
+    Every part must be present and in range. A response missing one is
+    malformed, and averaging what arrived would silently put it on a different
+    scale from every other document.
+    """
+    for part in READABILITY_PARTS:
+        if part not in parts:
+            raise ValueError(f"cold-read judge omitted readability part {part!r}")
+        if not 0.0 <= parts[part] <= 10.0:
+            raise ValueError(f"readability part {part!r} out of range: {parts[part]}")
+    return round(sum(parts[p] for p in READABILITY_PARTS) / len(READABILITY_PARTS), 2)
+
+
 def run_cold_read(inp: ColdReadInput, stage: str = "judge_cold_read") -> ColdReadScores:
     result = call_model(stage, **build_cold_read_request(inp))
+    parts = {
+        p: float(result[f"readability_{p}"])
+        for p in READABILITY_PARTS
+        if result.get(f"readability_{p}") is not None
+    }
     return ColdReadScores(
         jd_alignment=float(result["jd_alignment"]),
-        recruiter_readability=float(result["recruiter_readability"]),
+        recruiter_readability=readability_score(parts),
         hire_intent=float(result["hire_intent"]),
+        readability_parts=parts,
         notes=cast(dict[str, str], result.get("notes", {})),
     )
 

@@ -11,7 +11,8 @@ import json
 import statistics
 from typing import Any
 
-from config import RUNS_DIR
+from config import AUTHENTICITY_GATE, RUNS_DIR
+from evaluation.sweep import passes_gate
 
 AXES = ("jd_alignment", "recruiter_readability", "authenticity", "hire_intent", "composite")
 
@@ -39,10 +40,24 @@ def _stats(values: list[float]) -> tuple[float, float]:
     return (round(statistics.mean(values), 2), round(spread, 2))
 
 
+def gated(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Documents that clear the authenticity gate — the ones that would be sent."""
+    return [r for r in rows if passes_gate(float(r["authenticity"]))]
+
+
+def gate_record(rows: list[dict[str, Any]]) -> dict[str, tuple[int, int]]:
+    """(passed, total) per arm. A rejection rate is a result in its own right."""
+    return {
+        arm: (len(gated([r for r in rows if r["arm"] == arm])), sum(r["arm"] == arm for r in rows))
+        for arm in sorted({r["arm"] for r in rows})
+    }
+
+
 def summarise(rows: list[dict[str, Any]]) -> dict[str, dict[str, tuple[float, float]]]:
+    """Mean and spread per axis per arm, over documents that pass the gate."""
     out: dict[str, dict[str, tuple[float, float]]] = {}
     for arm in sorted({r["arm"] for r in rows}):
-        arm_rows = [r for r in rows if r["arm"] == arm]
+        arm_rows = gated([r for r in rows if r["arm"] == arm])
         out[arm] = {axis: _stats([float(r[axis]) for r in arm_rows]) for axis in AXES}
     return out
 
@@ -51,6 +66,7 @@ def per_jd_record(rows: list[dict[str, Any]]) -> tuple[int, int, int]:
     """Wins/losses/ties by mean composite per JD. A per-sample record would
     overstate confidence by treating correlated samples as independent trials."""
     wins = losses = ties = 0
+    rows = gated(rows)
     for slug in sorted({r["slug"] for r in rows}):
         by_arm = {
             arm: [float(r["composite"]) for r in rows if r["slug"] == slug and r["arm"] == arm]
@@ -92,8 +108,12 @@ def render(sweep_id: str, rows: list[dict[str, Any]]) -> str:
         )
 
     wins, losses, ties = per_jd_record(rows)
+    gate = gate_record(rows)
     lines += [
         "─" * 78,
+        f"Authenticity gate (>= {AUTHENTICITY_GATE}): "
+        + "   ".join(f"{arm} {passed}/{total}" for arm, (passed, total) in gate.items())
+        + " passed; means are over passing documents",
         f"Per-JD record (pipeline): {wins}W-{losses}L-{ties}T   "
         f"(a JD is a tie when |delta| <= 0.1)",
         "* hire intent is reported, not folded into the composite.",
@@ -112,4 +132,13 @@ def sweep_ids() -> list[str]:
     return sorted(d.name for d in RUNS_DIR.iterdir() if d.is_dir())
 
 
-__all__ = ["load_and_render", "load_sweep", "render", "summarise", "per_jd_record", "sweep_ids"]
+__all__ = [
+    "gate_record",
+    "gated",
+    "load_and_render",
+    "load_sweep",
+    "per_jd_record",
+    "render",
+    "summarise",
+    "sweep_ids",
+]

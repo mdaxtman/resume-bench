@@ -6,9 +6,10 @@ untraceable claim" rubric that had no relation to document length.
 
 import pytest
 
+from config import AUTHENTICITY_GATE, WEIGHTS
 from evaluation.judges import authenticity_score
 from evaluation.report import per_jd_record
-from evaluation.sweep import composite
+from evaluation.sweep import composite, passes_gate
 
 
 def test_a_clean_resume_scores_ten() -> None:
@@ -47,13 +48,25 @@ def test_zero_claims_is_an_error_not_a_silent_ten() -> None:
         authenticity_score(claims_checked=0, untraceable=0, overstatements=0)
 
 
-def test_composite_excludes_hire_intent() -> None:
-    assert composite(10.0, 10.0, 10.0) == 10.0
-    assert composite(10.0, 0.0, 10.0) == 8.0  # readability carries 0.2
+def test_composite_excludes_hire_intent_and_authenticity() -> None:
+    assert composite(10.0, 10.0) == 10.0
+    assert composite(10.0, 0.0) == 6.667  # readability carries a third
+
+
+def test_removing_authenticity_preserves_the_original_two_to_one_ratio() -> None:
+    """Authenticity left the composite because its ICC was 0.31; the two axes
+    that remain keep the 0.4 : 0.2 balance they were given originally."""
+    assert WEIGHTS["jd_alignment"] == pytest.approx(2 * WEIGHTS["recruiter_readability"])
+    assert sum(WEIGHTS.values()) == pytest.approx(1.0)
+
+
+def test_the_gate_is_inclusive_at_its_threshold() -> None:
+    assert passes_gate(AUTHENTICITY_GATE)
+    assert not passes_gate(AUTHENTICITY_GATE - 0.01)
 
 
 def _row(slug: str, arm: str, comp: float) -> dict[str, object]:
-    return {"slug": slug, "arm": arm, "composite": comp}
+    return {"slug": slug, "arm": arm, "composite": comp, "authenticity": 9.5}
 
 
 def test_per_jd_record_counts_by_jd_not_by_sample() -> None:
@@ -99,7 +112,7 @@ def test_report_renders_without_a_real_sweep() -> None:
                     "sample": i,
                     "jd_alignment": 7.0,
                     "recruiter_readability": 7.5,
-                    "authenticity": 8.0,
+                    "authenticity": 9.0,
                     "hire_intent": 6.5,
                     "composite": 7.5,
                 }
@@ -108,3 +121,36 @@ def test_report_renders_without_a_real_sweep() -> None:
     assert "2 JDs, n=2 per arm" in out
     assert "hire intent *" in out
     assert "2W-0L-0T" in out
+
+
+def _scored(arm: str, authenticity: float, readability: float) -> dict[str, object]:
+    return {
+        "slug": "a",
+        "arm": arm,
+        "sample": 1,
+        "jd_alignment": 8.0,
+        "recruiter_readability": readability,
+        "authenticity": authenticity,
+        "hire_intent": 7.0,
+        "composite": 8.0,
+    }
+
+
+def test_a_document_that_fails_the_gate_is_counted_but_not_averaged() -> None:
+    """A gate rejects; it does not deduct. A fabricated resume would not be
+    sent, so it must not pull an arm's quality means down — but how often an
+    arm fails is a result in its own right and has to be visible."""
+    from evaluation.report import gate_record, summarise
+
+    rows = [_scored("pipeline", 9.5, 6.0), _scored("pipeline", 5.0, 2.0)]
+    assert gate_record(rows) == {"pipeline": (1, 2)}
+    assert summarise(rows)["pipeline"]["recruiter_readability"] == (6.0, 0.0)
+
+
+def test_the_report_states_gate_failures() -> None:
+    from evaluation.report import render
+
+    rows = [_scored("pipeline", 9.5, 6.0), _scored("control", 5.0, 6.0)]
+    rows.append(_scored("control", 9.5, 6.0))
+    out = render("gate-sweep", rows)
+    assert "1/1" in out and "1/2" in out

@@ -184,6 +184,8 @@ def cmd_reliability(args: argparse.Namespace) -> int:
             cold = run_cold_read(ColdReadInput(jd=jd, resume=resume))
             axes["jd_alignment"][key].append(cold.jd_alignment)
             axes["recruiter_readability"][key].append(cold.recruiter_readability)
+            for part, value in cold.readability_parts.items():
+                axes[f"  {part}"][key].append(value)
             axes["hire_intent"][key].append(cold.hire_intent)
             if args.authenticity:
                 auth = run_authenticity(AuthenticityInput(resume=resume, narratives=narratives))

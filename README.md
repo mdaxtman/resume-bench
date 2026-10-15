@@ -52,10 +52,26 @@ sections, because a denylist only catches the leak someone thought to forbid.
 
 ### Scoring
 
-Composite is `0.4 x jd_alignment + 0.2 x recruiter_readability + 0.4 x
-authenticity`, each axis 0–10. **Hire intent is measured and reported but
-excluded from the composite** — "would I call this person" is a different
-question from "does this document do its job", and it is the noisiest axis.
+Composite is `2/3 x jd_alignment + 1/3 x recruiter_readability`, each axis
+0–10. **Hire intent is measured and reported but excluded from the composite** —
+"would I call this person" is a different question from "does this document do
+its job", and it is the noisiest axis.
+
+**Authenticity is a gate, not a term.** A document scoring below 8.5 is rejected
+rather than averaged — it would not be sent, so it does not move an arm's quality
+means — and how many documents each arm loses to the gate is reported alongside
+them. Authenticity used to carry 0.4 of the composite; the reliability results
+below are why it no longer does. The two remaining axes keep the 2:1 ratio they
+had before.
+
+**Readability is scored in four parts** — opening, scannability, economy,
+structure — and is their mean, computed in Python. The judge never reports a
+holistic readability number. The single number it replaced sat at 6.0 for 80%
+of documents, and nothing could say which property of a document held it there.
+
+Every result reported below was produced under the earlier scoring — `0.4 x
+jd_alignment + 0.2 x readability + 0.4 x authenticity`, with holistic readability
+— and is not comparable with numbers produced under this one.
 
 Authenticity is length-normalised. The judge reports counts — claims checked,
 untraceable claims, overstatements — and the score is computed in Python, so
@@ -323,21 +339,23 @@ sensitive to the range it is computed over, so these are lower bounds for axes
 whose documents happen to cluster; nothing in the corpus scores above 7.0 on
 readability, so the top of that scale is untested.
 
-## Decisions this measurement implies, and has not made
+## Decisions this measurement implies
 
-The results above changed what the scoring design should be. None of these are
-implemented; they are recorded because the evidence for each is already in the
-numbers, and because forgetting why a change was warranted is how a harness
-drifts back toward measuring the wrong thing.
+The results above changed what the scoring design should be. The first two
+below have since been implemented (see *Scoring*); the rest have not. All are
+recorded because the evidence for each is in the numbers, and because forgetting
+why a change was warranted is how a harness drifts back toward measuring the
+wrong thing.
 
-**Authenticity belongs as a gate, not as 40% of a quality score.** Its ICC is
-0.31 — within-document variation exceeds between-document variation, so it
-carries almost no document-level signal — while it holds the joint-largest
-weight in the composite. The likely explanation is benign: it was added to catch
-fabrication, and it sits at 9.5 for 87% of documents because fabrication is not
-happening. That is a working guardrail. But a guardrail earns its keep by rarely
-firing and a quality axis earns its keep by spreading, and one number cannot do
-both. As a gate it would reject below ~8.5, which 75 of 76 documents clear.
+**Authenticity belongs as a gate, not as 40% of a quality score.**
+*Implemented.* Its ICC is 0.31 — within-document variation exceeds
+between-document variation, so it carries almost no document-level signal —
+while it holds the joint-largest weight in the composite. The likely explanation
+is benign: it was added to catch fabrication, and it sits at 9.5 for 87% of
+documents because fabrication is not happening. That is a working guardrail. But
+a guardrail earns its keep by rarely firing and a quality axis earns its keep by
+spreading, and one number cannot do both. As a gate it would reject below ~8.5,
+which 75 of 76 documents clear.
 
 **The composite is jd_alignment wearing a coat.** Variance contributed by each
 weighted term: jd alignment 0.396, authenticity 0.108, readability 0.084. The
@@ -347,17 +365,17 @@ Dropping authenticity and renormalising was tested arithmetically and moved the
 t-statistic from 1.60 to 1.75 — marginally more sensitive, not decisive, because
 removing a near-constant term rescales the delta and its error together.
 
-**Readability may have a ceiling rather than a noise problem.** The obvious
-inference from 80% of documents scoring 6.0 was a miscalibrated rubric, and the
-reliability measurement contradicted it: the judge reproduces its own score to
-within 0.18. So the compression is real. But nothing in either corpus has ever
-scored above 7.0, so the top two bands are untested and may be unreachable for
-documents of this class. Decomposing the single holistic judgement into
-sub-criteria — opening strength, bullet uniformity, section structure,
-time-to-key-fact — would produce spread arithmetically and make a score
-diagnosable rather than merely reportable. What it must not do is instruct the
-judge to "use the full range", which manufactures spread without adding
-information.
+**Readability may have a ceiling rather than a noise problem.** *Decomposition
+implemented.* The obvious inference from 80% of documents scoring 6.0 was a
+miscalibrated rubric, and the reliability measurement contradicted it: the judge
+reproduces its own score to within 0.18. So the compression is real. But nothing
+in either corpus has ever scored above 7.0, so the top two bands are untested
+and may be unreachable for documents of this class. Decomposing the single
+holistic judgement into sub-criteria — opening strength, bullet uniformity,
+section structure, time-to-key-fact — would produce spread arithmetically and
+make a score diagnosable rather than merely reportable. What it must not do is
+instruct the judge to "use the full range", which manufactures spread without
+adding information.
 
 **Resolving the composite comparison needs roughly 40 postings, not more
 samples.** Between-job variation (sd 0.32) is more than twice the effect (+0.14).
