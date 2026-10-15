@@ -92,13 +92,15 @@ configs is not a result. Every mean in the report is printed with its spread.
 ## Results
 
 The arm comparison below rests on two experiments, 126 scored documents, `n = 3`
-samples per arm per job. Three later ones change it. The trim experiment — 304
+samples per arm per job. Four later ones change it. The trim experiment — 304
 documents — is under *Does a shorter resume score better?*; a fresh re-run of
 both arms, after a fix that gave the generator inputs it had never received,
 is under *Does the generator get what the fit stage found?*, and finds no
 pipeline advantage at all; a bullet budget in the generator, under *Does a
 bullet budget in the generator help?*, raises readability and restores a small,
-unresolved lead.
+unresolved lead. *What does the refinement stage do?* finds that lead is all
+refinement's, that refinement gives a single prompt the same gain, and that
+the gain carries a cost in unsupported claims.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -557,13 +559,14 @@ economy plus the same halo the trim found.
 steady share of the overstatements, keep their length while bullets go.
 Verbatim trimming to 800 words cannot introduce an overstatement and lowers the
 score by the same amount: −0.13 in each arm, down on 12 and 11 of 13 jobs. What
-remains is small and real. Overstatements of scope — "led", "sole", "owned",
-often where the narrative says the team did it — rise +0.69 a document [+0.09,
-+1.29], on 10 of 13 jobs. The likely reading is that fewer bullets get framed
-as bigger ones; merging is not it, since the share of bullets joining two
-accomplishments is 12% either way. Untraceable claims do not move (0.13 a document either way). One
-document fell below the gate, at 8.42, and it holds four of the sweep's five
-untraceable claims.
+remains is small. Overstatements of scope — "led", "sole", "owned", often where
+the narrative says the team did it — rise +0.69 a document [+0.09, +1.29], on
+10 of 13 jobs, but not in the generator's drafts: scored before refinement, the
+budgeted drafts show +0.21 [−0.34, +0.75] and no change in overstatements
+overall. The rise appears in refinement, which is where the next section finds
+unsupported claims entering. Untraceable claims do not move (0.13 a document
+either way). One document fell below the gate, at 8.42, and it holds four of
+the sweep's five untraceable claims.
 
 **Against the control, a lead reappears and stays unresolved.** The control
 does not use the generator, so the budgeted pipeline pairs against the fresh
@@ -571,8 +574,104 @@ sweep's control directly: composite +0.07 [−0.16, +0.31], record 7W-4L-2T,
 against −0.02 and 5W-5L-3T without the budget. The opening deficit is gone
 (+0.05), partly through the same halo; economy now favours the pipeline by
 +0.50 [+0.15, +0.85]. Structure still trails, −0.23 [−0.53, +0.07], which
-leaves refinement's heading rewrite as the open suspect. The budgeted pipeline
-is 360 words shorter than the control.
+leaves refinement's heading rewrite as the open suspect — confirmed in the next
+section. The budgeted pipeline is 360 words shorter than the control.
+
+### What does the refinement stage do?
+
+Every pipeline sample keeps the generator's rendered draft and the screener's
+report, so refinement can be removed or changed with the draft held fixed. Three
+conditions on the budgeted sweep's 39 drafts, each paired with the same
+document: the **draft** scored as is, with no screener or refinement; the
+pipeline as it ran, **refined**; and **refined (fixed input)**, refinement re-run on the same
+draft and screener report but given the rendered draft instead of its own
+reformatting of the structured one. The pre-budget sweep's drafts were also
+scored, as a replication of draft against refined. Decision rules, fixed
+first: drop refinement if the draft holds composite, jd alignment, hire intent
+and the gate; adopt the fixed input if it beats both other conditions.
+
+```
+draft -> refined, paired by job (13), mean [95% CI]
+                     budgeted drafts         pre-budget drafts
+jd alignment        +0.49 [+0.18, +0.79]    +0.74 [+0.40, +1.08]
+hire intent         +0.31 [+0.05, +0.56]    +0.49 [+0.14, +0.83]
+readability         -0.14 [-0.34, +0.06]    +0.00 [-0.15, +0.15]
+  structure         -0.44 [-0.63, -0.25]    -0.18 [-0.28, -0.07]
+keyword coverage    +12.6pp                 +13.0pp
+words               +77                     +72
+authenticity        -0.17 [-0.24, -0.10]    -0.09 [-0.17, -0.02]
+composite           +0.28 [+0.04, +0.52]    +0.50 [+0.26, +0.73]
+```
+
+**Refinement is the pipeline's advantage — all of it.** Without it the pipeline
+loses to the single-prompt control: the draft trails on jd alignment −0.44
+[−0.74, −0.14], hire intent −0.33 [−0.64, −0.03] and keyword coverage −10pp,
+for a record of 3W-9L-1T. The fit-guided generator writes a resume with fewer
+of the posting's terms than one prompt does, and refinement more than makes up
+the difference. The effect is the largest any experiment here has measured, and
+it replicates on drafts written before the budget.
+
+**It works by adding the posting's terms, and some of what it adds is not
+true.** Coverage rises 12.6 points and the document 77 words. Refinement's
+prompt forbids new claims and audits every ownership verb, yet it adds 1.31
+overstatements a document [+0.88, +1.73]. The 78 drafts, across both sweeps,
+carry no untraceable claim at all; every one in the refined documents entered
+at refinement. They are of
+two kinds: JD terms appended to the skills list ("AWS S3", "A/B testing",
+"design component libraries") where the narrative mentions the thing only in
+passing or not at all, and summary sentences that draw a parallel to the
+target's product beyond what the narratives support. The scope overstatements
+the budget section found rising also appear here and not in the drafts.
+
+**The heading rewrite was the code, not the model.** Refinement received
+`_format_resume_for_screener`'s reformatting of the structured draft, which
+wrote each role as a bold line in the same weight as a project name, and it
+copied that layout into all 38 documents whose draft had role headings. Given
+the rendered draft instead, 38 of 39 keep them:
+
+```
+refined (fixed input) - refined, paired by job (13)
+structure           +0.33 [+0.10, +0.57]   up on 7 jobs, down on none
+composite           +0.09 [-0.14, +0.31]
+jd alignment        +0.09     hire intent  +0.03     authenticity  -0.05
+untraceable claims  +0.26 [-0.04, +0.55]   documents with any: 2 -> 7
+```
+
+Structure recovers; nothing else moves. Against the draft it wins on composite,
++0.37 [+0.21, +0.52]; against the original refinement, only on the structure
+it was meant to fix. It is adopted as a fix rather than as an improvement:
+refinement now edits the document the screener read. Untraceable claims are the
+thing to watch. The rise is inside its interval, and two documents carry most of
+it, but it points the same way as everything else refinement adds.
+
+**Refinement works on any resume, and with it on both arms they tie.** The same
+screener and refinement, applied to the 39 control documents:
+
+```
+paired by job (13)          control+refinement - control   pipeline - control+refinement
+jd alignment                +0.31 [+0.05, +0.56]           -0.17 [-0.56, +0.22]
+hire intent                 -0.10 [-0.31, +0.11]           +0.10 [-0.21, +0.42]
+readability                 -0.10 [-0.23, +0.03]           +0.29 [+0.03, +0.56]
+keyword coverage            +9.1pp                         -6.3pp
+composite                   +0.17 [-0.02, +0.36]           -0.01 [-0.34, +0.31]
+record                                                     5W-7L-1T
+```
+
+The control starts with more of the posting's terms (55% coverage against the
+draft's 45%), so refinement has less to add, and adds it: +0.31 jd alignment.
+Then the full pipeline and a single prompt plus refinement are indistinguishable
+on composite, jd alignment and hire intent. The pipeline's one remaining edge is
+readability, and that comes from the bullet budget, a rule in the generator's
+prompt that the control prompt could carry as easily. By the rule fixed before
+this ran, the fit assessment and the fit-guided generator do not earn their two
+calls: the measurable value is a keyword pass that any draft can be given.
+
+**What this does not show.** jd alignment is scored by a model reading the
+posting, which is the axis most open to a document that repeats the posting's
+terms; whether a recruiter rewards the added clauses as the judge does is not
+measured here. The authenticity cost is measured, and in use it is the part an
+interviewer would find. The control comparisons pair documents from two sweeps
+generated under the same conditions, not from one. One judgement per document.
 
 ## Decisions this measurement implies
 
