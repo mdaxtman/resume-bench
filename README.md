@@ -80,7 +80,10 @@ the arithmetic is deterministic and the raw findings survive for analysis. The
 rubric this replaced deducted a flat 2 points per untraceable claim from a
 starting 10 with no relation to document length, which meant a longer resume
 was penalised for being longer: a roughly 95%-accurate control resume took -11
-and floored at 0, making the composite gap uninterpretable.
+and floored at 0, making the composite gap uninterpretable. The rate has the
+opposite tilt, smaller: cutting well-supported bullets lowers it with nothing new
+wrong, because the summary and skills keep their claims — about −0.13 at 800
+words.
 
 `n = 3` samples per arm per JD by default. LLM judges vary by roughly half a
 point per axis on an identical document, so a single-sample delta between two
@@ -89,11 +92,13 @@ configs is not a result. Every mean in the report is printed with its spread.
 ## Results
 
 The arm comparison below rests on two experiments, 126 scored documents, `n = 3`
-samples per arm per job. Two later ones change it. The trim experiment — 304
+samples per arm per job. Three later ones change it. The trim experiment — 304
 documents — is under *Does a shorter resume score better?*; a fresh re-run of
 both arms, after a fix that gave the generator inputs it had never received,
 is under *Does the generator get what the fit stage found?*, and finds no
-pipeline advantage at all.
+pipeline advantage at all; a bullet budget in the generator, under *Does a
+bullet budget in the generator help?*, raises readability and restores a small,
+unresolved lead.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -498,6 +503,76 @@ mostly trailing keyword clauses — "…, strengthening WCAG compliance" — on
 bullets the generator was told to keep to one clause. That is plausibly where
 the pipeline's keyword-coverage edge comes from, and plausibly part of what it
 costs. The refinement stage is the next thing to test on its own.
+
+### Does a bullet budget in the generator help?
+
+The trim found a third of every resume free to cut, but it cut from outside,
+verbatim, and left roles as empty headers. A shorter resume should come from the
+generator. Two pilots showed it does not keep a length rule stated in its system
+prompt: an 800-word cap moved drafts from 954 words to 891, and "at most 18
+bullets" produced 25–28. What went in is a budget rule in the system prompt —
+spend bullets by relevance, oldest roles get one, every role keeps one — with the
+number restated as the last line of the request, the placement a three-call
+probe found the generator mostly follows. The decision rule was fixed before the
+sweep: keep it if readability rises while jd alignment and hire intent hold;
+revert it if either falls.
+
+```
+pipeline arm, 18-bullet budget vs none — 13 jobs, n = 3, paired by job
+                    none   budget    delta [95% CI]         jobs up/down
+words               1032      822    -208
+bullets             29.1     21.5    -7.6
+jd alignment        7.59     7.63    +0.03 [-0.24, +0.29]    4/3
+hire intent         7.15     7.24    +0.08 [-0.20, +0.35]    5/4
+readability         6.26     6.49    +0.22 [+0.03, +0.42]    9/2
+  opening           6.90     7.24    +0.33 [+0.10, +0.57]   10/2
+  scannability      5.77     5.95    +0.18 [-0.05, +0.41]    8/2
+  economy           5.77     6.13    +0.35 [+0.08, +0.61]   10/2
+  structure         6.59     6.63    +0.03 [-0.24, +0.29]    5/4
+keyword coverage   59.9%    58.6%    -2.2pp [-6.0, +1.7]
+authenticity        9.60     9.46    -0.15 [-0.25, -0.05]    2/11
+composite           7.15     7.25    +0.09 [-0.14, +0.32]    9/4
+```
+
+**It passes the rule, and the budget stays.** A fifth of every document goes,
+readability rises by about what the 800-word trim found, and neither jd
+alignment nor hire intent moves. Structure holds, as it did in the trim at this
+length, and no role is left as an empty header.
+
+**The budget works as pressure, not as a limit.** Only 4 of 39 drafts kept to
+18 bullets. They average 20.4, against 26.6 without the budget, at the same 25
+words a bullet. Refinement then adds about one more, where it added 2.5 without
+the budget. A stricter number, or a check that returns an over-budget draft, is
+the lever if a shorter document is wanted; nothing here says one is.
+
+**Part of the readability gain is the judge's impression.** Economy has a
+mechanism — fewer, more relevant bullets — and rose as it did under trimming.
+Opening rose +0.33 with summaries the same length (73 words both ways), and the
+trim moved opening +0.13 and +0.31 in its two arms without touching a summary.
+The judge scores the opening partly on the document behind it. Read the gain as
+economy plus the same halo the trim found.
+
+**Authenticity falls, and most of the fall is arithmetic.** The score is a rate
+— penalties over claims checked — and the summary and skills, which carry a
+steady share of the overstatements, keep their length while bullets go.
+Verbatim trimming to 800 words cannot introduce an overstatement and lowers the
+score by the same amount: −0.13 in each arm, down on 12 and 11 of 13 jobs. What
+remains is small and real. Overstatements of scope — "led", "sole", "owned",
+often where the narrative says the team did it — rise +0.69 a document [+0.09,
++1.29], on 10 of 13 jobs. The likely reading is that fewer bullets get framed
+as bigger ones; merging is not it, since the share of bullets joining two
+accomplishments is 12% either way. Untraceable claims do not move (0.13 a document either way). One
+document fell below the gate, at 8.42, and it holds four of the sweep's five
+untraceable claims.
+
+**Against the control, a lead reappears and stays unresolved.** The control
+does not use the generator, so the budgeted pipeline pairs against the fresh
+sweep's control directly: composite +0.07 [−0.16, +0.31], record 7W-4L-2T,
+against −0.02 and 5W-5L-3T without the budget. The opening deficit is gone
+(+0.05), partly through the same halo; economy now favours the pipeline by
++0.50 [+0.15, +0.85]. Structure still trails, −0.23 [−0.53, +0.07], which
+leaves refinement's heading rewrite as the open suspect. The budgeted pipeline
+is 360 words shorter than the control.
 
 ## Decisions this measurement implies
 
