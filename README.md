@@ -107,7 +107,9 @@ the generator say less than a single prompt?* finds that the generator never
 sees the posting and omits whatever the fit report files as a gap. Showing it
 the posting, lifting its cap on skills and naming lighter work at its true
 depth, all together, closes the gap to the single prompt, but adds unsupported
-claims in 2 of 39 documents and is not kept.
+claims in 2 of 39 documents and is not kept. The gain turns out to be the
+summary's comparison of the candidate to the employer's product: hold the
+summary to the candidate's own work and the gain goes with it.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -809,6 +811,37 @@ endpoint credited to the wrong stack. The skills change's wording, what "the
 narratives show the candidate using", appears to be what keeps the posting's
 terms out of the claims once all three run together. The experiment is in the
 history (`ab130d1`, reverted in `f6a8396`).
+
+**The gain was the comparison.** The current prompt asks the summary's second
+sentence to name the employer's product and "the architectural parallel" to
+the candidate's work, and with the posting in hand the generator names it from
+there. One more condition ran all three changes with that sentence describing
+only the candidate's own work, under the same rule. No summary compared, against
+21 of 39 in all three, and nothing else differed: no draft needed a retry.
+
+```
+own work only, paired by job (13)   jd alignment            composite               overstatements a document
+vs all three                        -0.36 [-0.57, -0.15]    -0.26 [-0.46, -0.07]    -0.67 [-1.18, -0.15]
+vs current drafts                   +0.00 [-0.33, +0.33]    -0.02 [-0.30, +0.26]    -0.44 [-0.79, -0.08]
+vs control                          -0.44 [-0.66, -0.21]    -0.22 [-0.40, -0.04]    -1.72 [-2.24, -1.20]
+```
+
+jd alignment falls for 10 postings and rises for 1, and the whole gain of the
+three changes goes. The two judges disagree about the comparison. The cold-read
+judge sees only the posting and the resume, has no way to check it, and
+rewards it. The authenticity judge sees the narratives and often lists it as
+an overstatement ("an interpretive stretch not grounded in the narrative"):
+11 of all three's 99 overstatements are comparisons with the employer's work,
+and none of this condition's 73. Without the comparison the
+generator is more honest than the current one (overstatements per claim
+−1.86 [−3.03, −0.70]) and scores no better. It still fails the rule, with 2 of
+39 documents untraceable, both posting terms written into skills for one
+posting: "AWS S3", which the narratives mention once as product behaviour, and
+"Test-Driven Development", which they never mention. That makes three findings
+of one kind. Refinement's gain was the claims it added, the control's lead
+includes "-adjacent" stretching, and most of the generator's missing jd
+alignment is a claim about the employer's product. The experiment is in the history
+(`a8854d2`, reverted in `1dfcf78`).
 
 **A draft whose tool call folded into its summary.** Five of 234 budgeted
 drafts across six runs, and 4 of 39 before the bullet budget, arrived with the
