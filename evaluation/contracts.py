@@ -40,9 +40,13 @@ class AuthenticityInput:
 
 @dataclass(frozen=True)
 class ColdReadScores:
+    """`recruiter_readability` is derived from `readability_parts` in Python
+    (see `evaluation.judges.readability_score`); the judge never reports it."""
+
     jd_alignment: float
     recruiter_readability: float
     hire_intent: float
+    readability_parts: dict[str, float] = field(default_factory=dict)
     notes: dict[str, str] = field(default_factory=dict)
 
 

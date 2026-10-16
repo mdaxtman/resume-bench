@@ -6,9 +6,10 @@ untraceable claim" rubric that had no relation to document length.
 
 import pytest
 
-from evaluation.judges import authenticity_score
+from config import AUTHENTICITY_GATE, CLAIM_COST, WEIGHTS
+from evaluation.judges import authenticity_score, unsupported_claims
 from evaluation.report import per_jd_record
-from evaluation.sweep import composite
+from evaluation.sweep import composite, net_composite, passes_gate
 
 
 def test_a_clean_resume_scores_ten() -> None:
@@ -47,13 +48,25 @@ def test_zero_claims_is_an_error_not_a_silent_ten() -> None:
         authenticity_score(claims_checked=0, untraceable=0, overstatements=0)
 
 
-def test_composite_excludes_hire_intent() -> None:
-    assert composite(10.0, 10.0, 10.0) == 10.0
-    assert composite(10.0, 0.0, 10.0) == 8.0  # readability carries 0.2
+def test_composite_excludes_hire_intent_and_authenticity() -> None:
+    assert composite(10.0, 10.0) == 10.0
+    assert composite(10.0, 0.0) == 6.667  # readability carries a third
+
+
+def test_removing_authenticity_preserves_the_original_two_to_one_ratio() -> None:
+    """Authenticity left the composite because its ICC was 0.31; the two axes
+    that remain keep the 0.4 : 0.2 balance they were given originally."""
+    assert WEIGHTS["jd_alignment"] == pytest.approx(2 * WEIGHTS["recruiter_readability"])
+    assert sum(WEIGHTS.values()) == pytest.approx(1.0)
+
+
+def test_the_gate_is_inclusive_at_its_threshold() -> None:
+    assert passes_gate(AUTHENTICITY_GATE)
+    assert not passes_gate(AUTHENTICITY_GATE - 0.01)
 
 
 def _row(slug: str, arm: str, comp: float) -> dict[str, object]:
-    return {"slug": slug, "arm": arm, "composite": comp}
+    return {"slug": slug, "arm": arm, "composite": comp, "authenticity": 9.5}
 
 
 def test_per_jd_record_counts_by_jd_not_by_sample() -> None:
@@ -99,7 +112,7 @@ def test_report_renders_without_a_real_sweep() -> None:
                     "sample": i,
                     "jd_alignment": 7.0,
                     "recruiter_readability": 7.5,
-                    "authenticity": 8.0,
+                    "authenticity": 9.0,
                     "hire_intent": 6.5,
                     "composite": 7.5,
                 }
@@ -108,3 +121,97 @@ def test_report_renders_without_a_real_sweep() -> None:
     assert "2 JDs, n=2 per arm" in out
     assert "hire intent *" in out
     assert "2W-0L-0T" in out
+
+
+def _scored(arm: str, authenticity: float, readability: float) -> dict[str, object]:
+    return {
+        "slug": "a",
+        "arm": arm,
+        "sample": 1,
+        "jd_alignment": 8.0,
+        "recruiter_readability": readability,
+        "authenticity": authenticity,
+        "hire_intent": 7.0,
+        "composite": 8.0,
+    }
+
+
+def test_a_document_that_fails_the_gate_is_counted_but_not_averaged() -> None:
+    """A gate rejects; it does not deduct. A fabricated resume would not be
+    sent, so it must not pull an arm's quality means down — but how often an
+    arm fails is a result in its own right and has to be visible."""
+    from evaluation.report import gate_record, summarise
+
+    rows = [_scored("pipeline", 9.5, 6.0), _scored("pipeline", 5.0, 2.0)]
+    assert gate_record(rows) == {"pipeline": (1, 2)}
+    assert summarise(rows)["pipeline"]["recruiter_readability"] == (6.0, 0.0)
+
+
+def test_the_report_states_gate_failures() -> None:
+    from evaluation.report import render
+
+    rows = [_scored("pipeline", 9.5, 6.0), _scored("control", 5.0, 6.0)]
+    rows.append(_scored("control", 9.5, 6.0))
+    out = render("gate-sweep", rows)
+    assert "1/1" in out and "1/2" in out
+
+
+def test_a_single_arm_sweep_does_not_report_a_delta_against_nothing() -> None:
+    """`--arms pipeline` is the documented way to run a before/after. Its report
+    printed the absent control as 0.00 and the pipeline's own mean as a delta."""
+    from evaluation.report import render
+
+    out = render("one-arm", [_scored("pipeline", 9.5, 6.0)])
+    axis_rows = [line for line in out.splitlines() if "±" in line]
+    assert axis_rows and all(line.split()[-2:] == ["—", "—"] for line in axis_rows)
+    assert "+6.00" not in out and "+8.00" not in out
+    assert "Per-JD record" not in out
+
+
+def test_an_untraceable_claim_counts_twice_an_overstatement_once() -> None:
+    """The same weights the authenticity score uses, so the two never disagree
+    about what a finding is worth."""
+    assert unsupported_claims(untraceable=1, overstatements=0) == 2.0
+    assert unsupported_claims(untraceable=0, overstatements=1) == 1.0
+    assert authenticity_score(claims_checked=10, untraceable=1, overstatements=1) == 10.0 * (
+        1 - unsupported_claims(1, 1) / (2 * 10)
+    )
+
+
+def test_net_composite_charges_the_cost_per_unsupported_claim() -> None:
+    assert net_composite(7.0, 0.0) == 7.0
+    assert net_composite(7.0, 3.0) == pytest.approx(7.0 - 3 * CLAIM_COST)
+
+
+def test_supported_claims_cost_nothing_however_many() -> None:
+    """Unlike the flat rubric the authenticity score replaced, length is not a
+    penalty here: only a claim the narratives do not support is charged."""
+    from evaluation.report import with_claims
+
+    long_clean = with_claims(
+        {"composite": 7.0, "claims_checked": 60, "untraceable": [], "overstatements": []}
+    )
+    assert long_clean["net_composite"] == 7.0
+
+
+def test_the_net_composite_is_derived_from_the_raw_findings() -> None:
+    """Every scores.json keeps the findings, so any sweep on disk can be read
+    with a cost per claim, and the cost can move without re-running one."""
+    from evaluation.report import with_claims
+
+    row = with_claims({"composite": 7.0, "untraceable": ["a"], "overstatements": ["b", "c"]})
+    assert row["unsupported"] == 4.0
+    assert row["net_composite"] == pytest.approx(7.0 - 4 * CLAIM_COST)
+
+
+def test_the_report_shows_unsupported_claims_beside_the_composite() -> None:
+    from evaluation.report import render
+
+    rows = [
+        {**_scored("pipeline", 9.5, 6.0), "overstatements": ["x"]},
+        {**_scored("control", 9.5, 6.0), "overstatements": ["x", "y", "z"]},
+    ]
+    out = render("claims-sweep", rows)
+    assert "unsupported claims †" in out and "net composite †" in out
+    net = next(line for line in out.splitlines() if line.startswith("net composite"))
+    assert net.split()[-1] == f"{2 * CLAIM_COST:+.2f}"

@@ -11,9 +11,42 @@ import json
 import statistics
 from typing import Any
 
-from config import RUNS_DIR
+from config import AUTHENTICITY_GATE, CLAIM_COST, RUNS_DIR
+from evaluation.judges import unsupported_claims
+from evaluation.sweep import net_composite, passes_gate
 
-AXES = ("jd_alignment", "recruiter_readability", "authenticity", "hire_intent", "composite")
+AXES = (
+    "jd_alignment",
+    "recruiter_readability",
+    "authenticity",
+    "hire_intent",
+    "composite",
+    "unsupported",
+    "net_composite",
+)
+
+
+def with_claims(row: dict[str, Any]) -> dict[str, Any]:
+    """The row with its unsupported claims counted and its net composite.
+
+    Both are derived from the raw findings every scores.json keeps, so any
+    sweep on disk can be read this way.
+    """
+    unsupported = unsupported_claims(
+        len(row.get("untraceable") or []), len(row.get("overstatements") or [])
+    )
+    return {
+        **row,
+        "unsupported": unsupported,
+        "net_composite": net_composite(float(row["composite"]), unsupported),
+    }
+
+
+_LABELS = {
+    "hire_intent": "hire intent *",
+    "unsupported": "unsupported claims †",
+    "net_composite": "net composite †",
+}
 
 
 def load_sweep(sweep_id: str) -> list[dict[str, Any]]:
@@ -39,10 +72,24 @@ def _stats(values: list[float]) -> tuple[float, float]:
     return (round(statistics.mean(values), 2), round(spread, 2))
 
 
+def gated(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Documents that clear the authenticity gate — the ones that would be sent."""
+    return [r for r in rows if passes_gate(float(r["authenticity"]))]
+
+
+def gate_record(rows: list[dict[str, Any]]) -> dict[str, tuple[int, int]]:
+    """(passed, total) per arm. A rejection rate is a result in its own right."""
+    return {
+        arm: (len(gated([r for r in rows if r["arm"] == arm])), sum(r["arm"] == arm for r in rows))
+        for arm in sorted({r["arm"] for r in rows})
+    }
+
+
 def summarise(rows: list[dict[str, Any]]) -> dict[str, dict[str, tuple[float, float]]]:
+    """Mean and spread per axis per arm, over documents that pass the gate."""
     out: dict[str, dict[str, tuple[float, float]]] = {}
     for arm in sorted({r["arm"] for r in rows}):
-        arm_rows = [r for r in rows if r["arm"] == arm]
+        arm_rows = [with_claims(r) for r in gated([r for r in rows if r["arm"] == arm])]
         out[arm] = {axis: _stats([float(r[axis]) for r in arm_rows]) for axis in AXES}
     return out
 
@@ -51,6 +98,7 @@ def per_jd_record(rows: list[dict[str, Any]]) -> tuple[int, int, int]:
     """Wins/losses/ties by mean composite per JD. A per-sample record would
     overstate confidence by treating correlated samples as independent trials."""
     wins = losses = ties = 0
+    rows = gated(rows)
     for slug in sorted({r["slug"] for r in rows}):
         by_arm = {
             arm: [float(r["composite"]) for r in rows if r["slug"] == slug and r["arm"] == arm]
@@ -80,24 +128,38 @@ def render(sweep_id: str, rows: list[dict[str, Any]]) -> str:
         "─" * 78,
         f"{'Axis':<24}{'Pipeline':>18}{'Control':>18}{'Delta':>12}",
     ]
+    both = "pipeline" in summary and "control" in summary
     for axis in AXES:
-        p_mean, p_sd = summary.get("pipeline", {}).get(axis, (0.0, 0.0))
-        c_mean, c_sd = summary.get("control", {}).get(axis, (0.0, 0.0))
-        label = axis.replace("_", " ")
-        if axis == "hire_intent":
-            label += " *"
+        label = _LABELS.get(axis, axis.replace("_", " "))
+        cells = []
+        for arm in ("pipeline", "control"):
+            mean, sd = summary.get(arm, {}).get(axis, (0.0, 0.0))
+            cells.append(f"{mean:.2f} ± {sd:.2f}" if arm in summary else "—")
+        # A single-arm sweep (`--arms pipeline`) has nothing to subtract from.
+        delta = summary["pipeline"][axis][0] - summary["control"][axis][0] if both else None
         lines.append(
-            f"{label:<24}{f'{p_mean:.2f} ± {p_sd:.2f}':>18}"
-            f"{f'{c_mean:.2f} ± {c_sd:.2f}':>18}{p_mean - c_mean:>+12.2f}"
+            f"{label:<24}{cells[0]:>18}{cells[1]:>18}"
+            + (f"{delta:>+12.2f}" if delta is not None else f"{'—':>12}")
         )
 
-    wins, losses, ties = per_jd_record(rows)
+    gate = gate_record(rows)
     lines += [
         "─" * 78,
-        f"Per-JD record (pipeline): {wins}W-{losses}L-{ties}T   "
-        f"(a JD is a tie when |delta| <= 0.1)",
-        "* hire intent is reported, not folded into the composite.",
+        f"Authenticity gate (>= {AUTHENTICITY_GATE}): "
+        + "   ".join(f"{arm} {passed}/{total}" for arm, (passed, total) in gate.items())
+        + " passed; means are over passing documents",
     ]
+    if both:
+        wins, losses, ties = per_jd_record(rows)
+        lines.append(
+            f"Per-JD record (pipeline): {wins}W-{losses}L-{ties}T   "
+            f"(a JD is a tie when |delta| <= 0.1)"
+        )
+    lines.append("* hire intent is reported, not folded into the composite.")
+    lines.append(
+        "† untraceable claims count twice, overstatements once; "
+        f"net composite is composite less {CLAIM_COST} per unsupported claim."
+    )
     return "\n".join(lines)
 
 
@@ -112,4 +174,13 @@ def sweep_ids() -> list[str]:
     return sorted(d.name for d in RUNS_DIR.iterdir() if d.is_dir())
 
 
-__all__ = ["load_and_render", "load_sweep", "render", "summarise", "per_jd_record", "sweep_ids"]
+__all__ = [
+    "gate_record",
+    "gated",
+    "load_and_render",
+    "load_sweep",
+    "per_jd_record",
+    "render",
+    "summarise",
+    "sweep_ids",
+]

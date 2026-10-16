@@ -26,11 +26,32 @@ JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "claude-sonnet-5")
 # Composite weights. Hire intent is deliberately excluded: it answers "would I
 # call this person", which is a different question from "does this document do
 # its job", and folding it in would let one noisy gut-check axis dominate.
+#
+# Authenticity is excluded too, and enforced as a gate instead. It held 0.4 of
+# the weight while carrying almost no document-level signal (ICC 0.31; 87% of
+# documents at 9.5), because it measures something that should almost never
+# vary: whether the resume fabricates. A guardrail earns its keep by rarely
+# firing and a quality axis by spreading, and one number cannot do both. The
+# remaining two axes keep the 0.4 : 0.2 ratio they were originally given.
 WEIGHTS = {
-    "jd_alignment": 0.4,
-    "recruiter_readability": 0.2,
-    "authenticity": 0.4,
+    "jd_alignment": 2 / 3,
+    "recruiter_readability": 1 / 3,
 }
+
+# A document scoring below this is rejected rather than averaged: it would not
+# be sent, so it should not move an arm's quality means. 75 of 76 documents in
+# the first full sweep cleared it. How often an arm is rejected is reported.
+AUTHENTICITY_GATE = 8.5
+
+# Composite points charged per unsupported claim in the net composite (see
+# `evaluation.sweep.net_composite`). The cold-read judge never sees the
+# narratives, so a claim it cannot check reads to it as the skill; the gate
+# fired on 3 of 546 documents. Where a version added unsupported claims and
+# nothing else, the judge paid 0.21 composite a claim for refinement's and 0.39
+# for a summary comparing the candidate with the employer's product. Below that
+# price a benchmark prefers the bolder resume. 0.5 sits above every price
+# measured, so no measured way of adding claims pays.
+CLAIM_COST = 0.5
 
 
 def get_anthropic_api_key() -> str:

@@ -9,12 +9,22 @@ Your job is to refine the language and terminology of the existing resume draft.
 **You may not add experience, capabilities, or claims not already present in the draft.**
 If a gap is not addressed in the existing resume, leave it absent. Your role is to edit what is there, not to fill what is missing.
 
-## INSTRUCTIONS
+## WHAT YOU MAY CHANGE
 
-For each gap the screener identified:
-- **Terminology mismatch**: Replace the candidate's term with the JD's equivalent term where the meaning is genuinely equivalent (same skill, different name). Do not substitute terms from different domains.
-- **Soft gap**: If the gap is already partially addressed in the resume, you may sharpen the existing language. If it is not addressed at all, leave it absent — do not add new bullets or claims.
-- **Hard gap**: Do not try to bridge it. If a section would be empty without this gap, leave the section out.
+Three kinds of edit, and nothing else:
+
+1. **Substitute a term.** Replace the candidate's term with the JD's term only when a narrative sentence describes the candidate doing the thing the JD's term names. The screener cannot see the narratives, so its terminology mappings are suggestions to check, not instructions: it maps adjacent work as equivalent. "An AI-generated DSL parsed into an AST" is not "prompt engineering"; an "RTK Query server-state layer" is not "backend API integration"; feature flags are not "A/B testing". When the JD's term names something adjacent — a broader category, a neighbouring discipline, the same tool used for another purpose — keep the candidate's term.
+2. **Tighten.** The ownership, completion, and scope audits below.
+3. **Hygiene.** The bullet hygiene rules below.
+
+Everything else is out, however well it would match the JD:
+- **No new bullets**, and no clause appended to an existing bullet that connects the work to a JD concern ("…, strengthening observability", "as part of ongoing reliability tooling").
+- **No new skills.** No new item, label, or category heading in the skills section naming a capability the narratives do not describe as the candidate's own hands-on work. A technology the narratives mention in passing, or as part of someone else's system, stays out.
+- **No new summary sentences**, and no comparison between the candidate's work and the target's product beyond what the draft already says.
+
+A gap the draft does not address stays unaddressed, whatever the screener says about it. A resume that leaves out a JD keyword is not broken; one that claims the keyword without support is.
+
+For every substitution, put the narrative sentence that supports it, verbatim, in that change's `narrative_evidence`. If you cannot quote one, do not make the substitution.
 
 ## OWNERSHIP VERB AUDIT
 
@@ -43,7 +53,7 @@ This is editing existing language for accuracy, which is within your remit — n
 
 Provide:
 - `refined_content` (string): The improved resume (formatted as markdown or text, not JSON)
-- `changes_made` (array): [{ `section`, `change_description` }, ...]
+- `changes_made` (array): [{ `section`, `change_description`, `narrative_evidence` }, ...] — `narrative_evidence` is required for a substitution
 - `remaining_gaps` (array): [{ `requirement`, `why_unfixable` }, ...] — gaps the candidate genuinely cannot fill
 - `coverage_improvement` (0–1): Estimated improvement in ATS score after refinement
 

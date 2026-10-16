@@ -1,5 +1,7 @@
 """Generator stage — produce tailored resume draft guided by fit assessment."""
 
+import json
+import re
 from typing import Any, cast
 
 from config import PIPELINE_MODEL
@@ -54,10 +56,42 @@ _GENERATOR_SCHEMA = {
 }
 
 
+# Function-call syntax inside a field's value: `</summary>` then
+# `<parameter name="experience">` with the roles as raw JSON text.
+_LEAKED_MARKUP = re.compile(
+    r"<parameter name=|</(?:summary|experience|skills|contact|parameter|invoke)>"
+)
+
+
+def draft_is_usable(result: dict[str, Any]) -> bool:
+    """A draft is usable when it has roles and skills and no field carries
+    another field inside it.
+
+    The schema requires `experience` and `skills`, but tool input_schema is
+    advisory. About one draft in forty arrived with the rest of the call
+    serialised into `summary`: no roles, or no skills, and the raw JSON in the
+    summary paragraph. The cold-read judge scored one of these 9.0 on jd
+    alignment, so the score would not have caught it.
+    """
+    experience = dict_items(result.get("experience"))
+    skills = result.get("skills")
+    return (
+        bool(experience)
+        and isinstance(skills, list)
+        and bool(skills)
+        and not _LEAKED_MARKUP.search(json.dumps(result))
+    )
+
+
 def _format_note(notes: str | None) -> str:
     """Format optional notes as suffix string."""
     return f" ({notes})" if notes else ""
 
+
+# Stated in the request rather than only in the system prompt: a pilot found
+# the generator ignores a length rule inside its ~18k-character prompt (25-28
+# bullets against 18) and mostly keeps one restated as the last thing it reads.
+BULLET_BUDGET = 18
 
 _OVERVIEW_CATEGORY = "career_overview"
 _SUPPLEMENTAL_CATEGORY = "supplemental"
@@ -157,6 +191,24 @@ def _format_fit_report(fit_report: dict[str, Any]) -> str:
             jd_term = term.get("jd_term", "")
             lines.append(f"  - {my_term} → {jd_term}")
 
+    # CULTURAL SIGNALS and PRODUCT CONNECTION: the generator prompt has a section
+    # for each, and neither was forwarded until the fit-guidance tests caught it.
+    signals = dict_items(fit_report.get("cultural_signals"))
+    if signals:
+        lines.append(
+            "\nCULTURAL SIGNALS — qualities this company values beyond its requirements "
+            "(evidence each only with a real experience from the narratives):"
+        )
+        for signal in signals:
+            quality = signal.get("quality", "")
+            jd_signal = signal.get("jd_signal", "")
+            hint = signal.get("evidence_hint", "")
+            lines.append(f'  - {quality} — JD signal: "{jd_signal}"; where to look: {hint}')
+
+    connection = fit_report.get("product_connection")
+    if isinstance(connection, str) and connection.strip():
+        lines.append(f"\nPRODUCT CONNECTION (product_connection):\n  {connection.strip()}")
+
     return "\n".join(lines)
 
 
@@ -223,12 +275,16 @@ def run_generator(
         "Use the fit assessment above to guide emphasis, handle gaps appropriately, and use the "
         "exact terminology from the JD. "
         "Include your contact information in the contact field if provided. "
-        "Use the submit_resume_draft tool to submit your output."
+        "Use the submit_resume_draft tool to submit your output.\n\n"
+        f"Hard limit: at most {BULLET_BUDGET} bullets in total across every role and project. "
+        "Count them before you submit."
     )
 
     # cast needed: Anthropic SDK requires Any type for tools parameter despite static type hints
     return call_model(
         "generate",
+        validate=draft_is_usable,
+        attempts=3,
         model=PIPELINE_MODEL,
         # 8192: full-resume output; same shape as refinement, which truncated
         # at 4096 under the claude-sonnet-5 tokenizer (stop_reason=max_tokens)

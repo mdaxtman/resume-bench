@@ -27,12 +27,22 @@ _AUTHENTICITY_TOOL = "submit_authenticity"
 
 _SCORE = {"type": "number", "minimum": 0, "maximum": 10}
 
+# Readability is scored in parts and combined in Python. The holistic axis sat
+# at 6.0 for 80% of documents while the judge reproduced its own score to within
+# 0.18 — real compression, but undiagnosable as one number.
+READABILITY_PARTS = ("opening", "scannability", "economy", "structure")
+
 _COLD_READ_SCHEMA: dict[str, Any] = {
     "type": "object",
-    "required": ["jd_alignment", "recruiter_readability", "hire_intent", "notes"],
+    "required": [
+        "jd_alignment",
+        *(f"readability_{p}" for p in READABILITY_PARTS),
+        "hire_intent",
+        "notes",
+    ],
     "properties": {
         "jd_alignment": _SCORE,
-        "recruiter_readability": _SCORE,
+        **{f"readability_{p}": _SCORE for p in READABILITY_PARTS},
         "hire_intent": _SCORE,
         "notes": {
             "type": "object",
@@ -124,6 +134,17 @@ def build_authenticity_request(inp: AuthenticityInput) -> dict[str, Any]:
     )
 
 
+def unsupported_claims(untraceable: int, overstatements: int) -> float:
+    """Unsupported claims in a document, weighted as the authenticity score
+    weights them: an untraceable claim counts twice, an overstatement once.
+
+    Not divided by length. The authenticity score answers "how much of what
+    this resume asserts is supported"; this answers "how many claims could a
+    reader catch", which is what a cost per claim needs.
+    """
+    return _UNTRACEABLE_PENALTY * untraceable + _OVERSTATEMENT_PENALTY * overstatements
+
+
 def authenticity_score(claims_checked: int, untraceable: int, overstatements: int) -> float:
     """Length-normalised authenticity, 0–10.
 
@@ -142,17 +163,55 @@ def authenticity_score(claims_checked: int, untraceable: int, overstatements: in
     """
     if claims_checked <= 0:
         raise ValueError("claims_checked must be positive to normalise a score")
-    penalty = _UNTRACEABLE_PENALTY * untraceable + _OVERSTATEMENT_PENALTY * overstatements
+    penalty = unsupported_claims(untraceable, overstatements)
     worst_case = _UNTRACEABLE_PENALTY * claims_checked
     return round(max(0.0, 10.0 * (1.0 - penalty / worst_case)), 2)
 
 
+def readability_score(parts: dict[str, float]) -> float:
+    """Unweighted mean of the four readability parts, 0–10.
+
+    Every part must be present and in range. A response missing one is
+    malformed, and averaging what arrived would silently put it on a different
+    scale from every other document.
+    """
+    for part in READABILITY_PARTS:
+        if part not in parts:
+            raise ValueError(f"cold-read judge omitted readability part {part!r}")
+        if not 0.0 <= parts[part] <= 10.0:
+            raise ValueError(f"readability part {part!r} out of range: {parts[part]}")
+    return round(sum(parts[p] for p in READABILITY_PARTS) / len(READABILITY_PARTS), 2)
+
+
+def cold_read_valid(result: dict[str, Any]) -> bool:
+    """Every score field present, numeric, and in range.
+
+    The schema is advisory. One live response flattened its notes into the top
+    level, leaving prose where `hire_intent` belonged; without this check that
+    fails the document instead of retrying the call.
+    """
+    for key in ("jd_alignment", "hire_intent", *(f"readability_{p}" for p in READABILITY_PARTS)):
+        try:
+            value = float(result[key])
+        except (KeyError, TypeError, ValueError):
+            return False
+        if not 0.0 <= value <= 10.0:
+            return False
+    return True
+
+
 def run_cold_read(inp: ColdReadInput, stage: str = "judge_cold_read") -> ColdReadScores:
-    result = call_model(stage, **build_cold_read_request(inp))
+    result = call_model(stage, validate=cold_read_valid, attempts=3, **build_cold_read_request(inp))
+    parts = {
+        p: float(result[f"readability_{p}"])
+        for p in READABILITY_PARTS
+        if result.get(f"readability_{p}") is not None
+    }
     return ColdReadScores(
         jd_alignment=float(result["jd_alignment"]),
-        recruiter_readability=float(result["recruiter_readability"]),
+        recruiter_readability=readability_score(parts),
         hire_intent=float(result["hire_intent"]),
+        readability_parts=parts,
         notes=cast(dict[str, str], result.get("notes", {})),
     )
 

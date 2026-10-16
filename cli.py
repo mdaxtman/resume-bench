@@ -24,6 +24,7 @@ from evaluation.keywords import cached_keywords, coverage
 from evaluation.reliability import interpret, reliability_report
 from evaluation.rescore import discover, load_slug_map, rescore_one
 from evaluation.sweep import ARMS, read_metadata, run_sample, write_metadata
+from evaluation.trim import load_trim, render_trim, run_trim
 
 
 def _load_narratives() -> str:
@@ -116,6 +117,60 @@ def cmd_rescore(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_trim(args: argparse.Namespace) -> int:
+    """Score existing documents untrimmed and at each word budget.
+
+    Holds wording fixed and varies only selection: bullets are removed verbatim,
+    never rewritten. The untrimmed original is re-scored alongside, so every
+    condition is measured by the same ruler in the same run.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    root = pathlib.Path("runs") / args.source
+    docs = sorted(
+        p
+        for p in root.glob("*/*/sample-*/resume.md")
+        if p.parts[-3] in args.arms and (not args.jd or p.parts[-4] in args.jd)
+    )
+    if not docs:
+        raise SystemExit(f"No {'/'.join(args.arms)} documents under {root}")
+
+    budgets = sorted(args.budgets, reverse=True)
+    meta = write_metadata(args.sweep_id)
+    print(
+        f"trim {args.sweep_id}: {len(docs)} documents from {args.source} x "
+        f"{len(budgets) + 1} conditions (full, {', '.join(map(str, budgets))} words)"
+    )
+    print("prompts: " + "  ".join(f"{k}={v}" for k, v in meta["prompts"].items()) + "\n")
+
+    narratives = _load_narratives()
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        futures = {}
+        for doc in docs:
+            slug, arm, sample = doc.parts[-4], doc.parts[-3], int(doc.parts[-2].split("-")[1])
+            future = pool.submit(
+                run_trim, args.sweep_id, doc, slug, arm, sample, budgets, narratives
+            )
+            futures[future] = f"{slug} {arm} #{sample}"
+        for done, future in enumerate(as_completed(futures), start=1):
+            label = f"[{done}/{len(futures)}] {futures[future]}"
+            try:
+                summary = "  ".join(
+                    f"{r['words']}w rr {r['recruiter_readability']:.2f}" for r in future.result()
+                )
+                print(f"{label:<52} {summary}")
+            except Exception as exc:  # one bad document must not kill the run
+                print(f"{label:<52} FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+    print(f"\nDone. uv run python -m cli trim-report --sweep-id {args.sweep_id}")
+    return 0
+
+
+def cmd_trim_report(args: argparse.Namespace) -> int:
+    print(render_trim(args.sweep_id, load_trim(args.sweep_id)))
+    return 0
+
+
 def cmd_coverage(args: argparse.Namespace) -> int:
     """Literal keyword coverage for every document in an existing sweep.
 
@@ -184,6 +239,8 @@ def cmd_reliability(args: argparse.Namespace) -> int:
             cold = run_cold_read(ColdReadInput(jd=jd, resume=resume))
             axes["jd_alignment"][key].append(cold.jd_alignment)
             axes["recruiter_readability"][key].append(cold.recruiter_readability)
+            for part, value in cold.readability_parts.items():
+                axes[f"  {part}"][key].append(value)
             axes["hire_intent"][key].append(cold.hire_intent)
             if args.authenticity:
                 auth = run_authenticity(AuthenticityInput(resume=resume, narratives=narratives))
@@ -277,6 +334,21 @@ def main(argv: list[str] | None = None) -> int:
     p_rel.add_argument("--repeats", type=int, default=4)
     p_rel.add_argument("--authenticity", action="store_true", help="also re-run the costlier judge")
     p_rel.set_defaults(func=cmd_reliability)
+
+    p_trim = sub.add_parser(
+        "trim", help="re-score existing documents with bullets removed to word budgets"
+    )
+    p_trim.add_argument("--source", required=True, help="sweep whose documents are trimmed")
+    p_trim.add_argument("--sweep-id", default="trim-01")
+    p_trim.add_argument("--budgets", type=int, nargs="+", default=[800, 600, 450])
+    p_trim.add_argument("--arms", nargs="+", choices=list(ARMS), default=list(ARMS))
+    p_trim.add_argument("--jd", nargs="*", help="specific JD slugs (default: all in source)")
+    p_trim.add_argument("--workers", type=int, default=4, help="documents scored concurrently")
+    p_trim.set_defaults(func=cmd_trim)
+
+    p_trim_report = sub.add_parser("trim-report", help="aggregate a trim experiment")
+    p_trim_report.add_argument("--sweep-id", default="trim-01")
+    p_trim_report.set_defaults(func=cmd_trim_report)
 
     p_report = sub.add_parser("report", help="aggregate a sweep")
     p_report.add_argument("--sweep-id", help="default: most recent")

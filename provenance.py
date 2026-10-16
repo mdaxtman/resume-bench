@@ -12,7 +12,7 @@ import hashlib
 import subprocess
 from typing import Any
 
-from config import JUDGE_MODEL, PIPELINE_MODEL, PROMPTS_DIR, WEIGHTS
+from config import AUTHENTICITY_GATE, JUDGE_MODEL, PIPELINE_MODEL, PROMPTS_DIR, WEIGHTS
 
 
 def prompt_fingerprints() -> dict[str, str]:
@@ -50,6 +50,7 @@ def sweep_metadata() -> dict[str, Any]:
         "pipeline_model": PIPELINE_MODEL,
         "judge_model": JUDGE_MODEL,
         "weights": dict(WEIGHTS),
+        "authenticity_gate": AUTHENTICITY_GATE,
         "prompts": prompt_fingerprints(),
         "git": _git_state(),
     }
@@ -58,7 +59,7 @@ def sweep_metadata() -> dict[str, Any]:
 def diff_metadata(a: dict[str, Any], b: dict[str, Any]) -> list[str]:
     """Human-readable differences between two sweeps' conditions."""
     out: list[str] = []
-    for key in ("pipeline_model", "judge_model"):
+    for key in ("pipeline_model", "judge_model", "authenticity_gate"):
         if a.get(key) != b.get(key):
             out.append(f"{key}: {a.get(key)} -> {b.get(key)}")
     if a.get("weights") != b.get("weights"):

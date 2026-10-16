@@ -25,9 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from config import RUNS_DIR
-from evaluation.contracts import AuthenticityInput, ColdReadInput
-from evaluation.judges import run_authenticity, run_cold_read
-from evaluation.sweep import composite
+from evaluation.sweep import score_document
 from telemetry import tracing
 
 _LEADING_H1 = re.compile(r"\A\s*#(?!#)[^\n]*\n?")
@@ -97,23 +95,14 @@ def rescore_one(sweep_id: str, item: dict[str, Any], narratives: str) -> dict[st
     (out / "resume.md").write_text(resume)
 
     with tracing(out / "trace.jsonl"):
-        cold = run_cold_read(ColdReadInput(jd=jd, resume=resume))
-        auth = run_authenticity(AuthenticityInput(resume=resume, narratives=narratives))
+        scored = score_document(jd, resume, narratives)
 
     scores = {
         "slug": item["slug"],
         "arm": item["arm"],
         "sample": item["sample"],
         "source_run": item["source_run"],
-        "jd_alignment": cold.jd_alignment,
-        "recruiter_readability": cold.recruiter_readability,
-        "hire_intent": cold.hire_intent,
-        "authenticity": auth.authenticity,
-        "claims_checked": auth.claims_checked,
-        "untraceable": auth.untraceable,
-        "overstatements": auth.overstatements,
-        "composite": composite(cold.jd_alignment, cold.recruiter_readability, auth.authenticity),
-        "notes": cold.notes,
+        **scored,
     }
     scores_path.write_text(json.dumps(scores, indent=2))
     return scores

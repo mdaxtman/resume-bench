@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from config import RUNS_DIR, WEIGHTS
+from config import AUTHENTICITY_GATE, CLAIM_COST, RUNS_DIR, WEIGHTS
 from corpus import load_jd
 from evaluation.contracts import AuthenticityInput, ColdReadInput
 from evaluation.control import run_control
@@ -84,17 +84,55 @@ def generate_pipeline_arm(
     resume_data = run_generator(narratives, fit, contact)
     draft = build_resume_markdown(resume_data)
     screener = run_screener(jd, draft)
-    refined = run_refinement(resume_data, dict(screener), narratives, jd)
+    refined = run_refinement(draft, dict(screener), narratives, jd)
     return refined["refined_content"], {"fit": fit, "screener": screener, "draft": draft}
 
 
-def composite(jd_alignment: float, readability: float, authenticity: float) -> float:
+def composite(jd_alignment: float, readability: float) -> float:
+    """Weighted quality score. Authenticity is a gate (`passes_gate`), not a term."""
     return round(
-        jd_alignment * WEIGHTS["jd_alignment"]
-        + readability * WEIGHTS["recruiter_readability"]
-        + authenticity * WEIGHTS["authenticity"],
+        jd_alignment * WEIGHTS["jd_alignment"] + readability * WEIGHTS["recruiter_readability"],
         3,
     )
+
+
+def net_composite(composite: float, unsupported: float) -> float:
+    """Composite less `CLAIM_COST` per unsupported claim.
+
+    Derived when reported rather than stored, like the gate, so the cost can
+    move without re-running a sweep. Composite itself is unchanged: it is what
+    a reader who cannot check the claims makes of the document, and every
+    earlier result is stated in it.
+    """
+    return round(composite - CLAIM_COST * unsupported, 3)
+
+
+def passes_gate(authenticity: float) -> bool:
+    """Derived when reported rather than stored, so the threshold can move
+    without re-running a sweep — the same policy as the authenticity score."""
+    return authenticity >= AUTHENTICITY_GATE
+
+
+def score_document(jd: str, resume: str, narratives: str) -> dict[str, Any]:
+    """Run both judges on one document and return its score fields.
+
+    Each judge gets only its own typed input, so the isolation in
+    `evaluation.contracts` holds wherever a document is scored from.
+    """
+    cold = run_cold_read(ColdReadInput(jd=jd, resume=resume))
+    auth = run_authenticity(AuthenticityInput(resume=resume, narratives=narratives))
+    return {
+        "jd_alignment": cold.jd_alignment,
+        "recruiter_readability": cold.recruiter_readability,
+        "readability_parts": cold.readability_parts,
+        "hire_intent": cold.hire_intent,
+        "authenticity": auth.authenticity,
+        "claims_checked": auth.claims_checked,
+        "untraceable": auth.untraceable,
+        "overstatements": auth.overstatements,
+        "composite": composite(cold.jd_alignment, cold.recruiter_readability),
+        "notes": cold.notes,
+    }
 
 
 def run_sample(
@@ -121,23 +159,8 @@ def run_sample(
         else:
             resume = run_control(jd, narratives)
         (out / "resume.md").write_text(resume)
+        scored = score_document(jd, resume, narratives)
 
-        cold = run_cold_read(ColdReadInput(jd=jd, resume=resume))
-        auth = run_authenticity(AuthenticityInput(resume=resume, narratives=narratives))
-
-    scores = {
-        "slug": slug,
-        "arm": arm,
-        "sample": index,
-        "jd_alignment": cold.jd_alignment,
-        "recruiter_readability": cold.recruiter_readability,
-        "hire_intent": cold.hire_intent,
-        "authenticity": auth.authenticity,
-        "claims_checked": auth.claims_checked,
-        "untraceable": auth.untraceable,
-        "overstatements": auth.overstatements,
-        "composite": composite(cold.jd_alignment, cold.recruiter_readability, auth.authenticity),
-        "notes": cold.notes,
-    }
+    scores = {"slug": slug, "arm": arm, "sample": index, **scored}
     scores_path.write_text(json.dumps(scores, indent=2))
     return scores

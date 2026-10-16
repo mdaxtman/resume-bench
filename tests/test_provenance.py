@@ -48,3 +48,14 @@ def test_model_and_weight_changes_are_reported() -> None:
     changes = diff_metadata(a, b)
     assert any("pipeline_model" in c for c in changes)
     assert any("weights" in c for c in changes)
+
+
+def test_a_changed_authenticity_gate_is_reported() -> None:
+    """The gate decides which documents are averaged, so moving it changes
+    every mean without touching a prompt or a weight."""
+    changes = diff_metadata({"authenticity_gate": 8.5}, {"authenticity_gate": 9.0})
+    assert changes == ["authenticity_gate: 8.5 -> 9.0"]
+
+
+def test_the_gate_is_recorded() -> None:
+    assert "authenticity_gate" in sweep_metadata()
