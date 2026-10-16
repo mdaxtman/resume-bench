@@ -81,7 +81,7 @@ def generate_pipeline_arm(
     """Four staged calls. Returns (final markdown, intermediate artefacts)."""
     fit = run_fit_assessment(jd, narratives)
     require_usable_fit(fit)
-    resume_data = run_generator(narratives, fit, contact)
+    resume_data = run_generator(narratives, fit, contact, jd)
     draft = build_resume_markdown(resume_data)
     screener = run_screener(jd, draft)
     refined = run_refinement(draft, dict(screener), narratives, jd)
