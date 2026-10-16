@@ -64,6 +64,14 @@ them. Authenticity used to carry 0.4 of the composite; the reliability results
 below are why it no longer does. The two remaining axes keep the 2:1 ratio they
 had before.
 
+**Unsupported claims are reported beside the composite, with a net composite.**
+Each report counts a document's unsupported claims (an untraceable claim twice,
+an overstatement once: the authenticity score's weights, not divided by length)
+and prints a net composite, which is the composite less `CLAIM_COST` (0.5) per unsupported
+claim. Both are derived at report time from the raw findings, as the gate is, so
+any sweep on disk reads this way. The composite itself is unchanged. *What if an
+unsupported claim cost something?* says why both are needed.
+
 **Readability is scored in four parts** — opening, scannability, economy,
 structure — and is their mean, computed in Python. The judge never reports a
 holistic readability number. The single number it replaced sat at 6.0 for 80%
@@ -109,7 +117,11 @@ the posting, lifting its cap on skills and naming lighter work at its true
 depth, all together, closes the gap to the single prompt, but adds unsupported
 claims in 2 of 39 documents and is not kept. The gain turns out to be the
 summary's comparison of the candidate to the employer's product: hold the
-summary to the candidate's own work and the gain goes with it.
+summary to the candidate's own work and the gain goes with it. *What if an
+unsupported claim cost something?* re-ranks every version with a price on each
+claim the narratives do not support. At that price the order reverses: every
+version of the current pipeline and generator scores above the single prompt,
+seven of the nine with an interval clear of zero.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -853,6 +865,74 @@ the shape before the final resume is scored, so no sweep showed it. The
 generator now rejects such a draft and retries, as the fit stage already did
 (`23dd851`).
 
+### What if an unsupported claim cost something?
+
+Three results above have the same shape. Refinement's gain was the claims it
+added. Part of the control's lead is "-adjacent" stretching. Most of the
+generator's missing jd alignment is a comparison with the employer's product.
+In each, jd alignment rose by saying things the narratives do not support. The
+cold-read judge cannot tell, because it never sees the narratives. The
+authenticity judge can, but its score is a gate at 8.5, and 3 of the 546
+documents scored under the current judges have fallen below it, all from the
+previous refinement prompt. Any other unsupported claim costs nothing in the
+composite.
+
+Where a version changed only its unsupported claims, the composite says what
+each claim bought. Refinement's previous prompt against the strict one gains
++0.31 composite for 1.46 more unsupported claims a document, 0.21 a claim. All
+three generator changes against the same changes with the summary held to the
+candidate's own work gain +0.26 for 0.67 more, 0.39 a claim. Below that price a
+benchmark prefers the bolder resume. `CLAIM_COST` is set at 0.5, above every
+price measured, so no way of adding claims seen so far pays. Re-ranking needs
+no new calls, because every scores.json keeps the findings. These are the
+main versions scored under the current judges, 39 documents each, with the
+three below the gate included:
+
+```
+version                              claims   unsupported   jd      composite   net composite
+control (single prompt)               50.6       3.90       7.56      7.16          5.21
+control + previous refinement         53.4       5.13       7.87      7.34          4.77
+pipeline, previous refinement         34.2       3.87       7.62      7.24          5.30
+pipeline, strict refinement (current) 30.6       2.41       7.13      6.93          5.72
+draft, current generator              30.6       2.31       7.13      6.96          5.80
+generator, all three changes          34.4       2.64       7.49      7.20          5.88
+generator, own work only              32.7       1.97       7.13      6.94          5.95
+```
+
+```
+paired by job (13), minus the control   composite               net composite           price that breaks even
+pipeline, strict refinement (current)   -0.24 [-0.46, -0.01]    +0.51 [+0.05, +0.97]    0.16 a claim
+generator, own work only                -0.22 [-0.40, -0.04]    +0.74 [+0.30, +1.18]    0.12
+generator, all three changes            +0.04 [-0.07, +0.15]    +0.67 [+0.22, +1.12]    any price
+pipeline, previous refinement           +0.07 [-0.16, +0.31]    +0.09 [-0.51, +0.68]    —
+```
+
+**Above about 0.16 a claim, the order reverses.** On the composite, the single
+prompt beats the current pipeline. On the net composite at 0.5 a claim, the
+current pipeline beats it, and so does every version of the current pipeline
+and generator. Seven of those nine clear zero, including the current
+generator's draft at +0.59 [+0.15, +1.03]. All three generator changes need no
+price at all: against the control they match the composite and carry 1.26
+fewer unsupported claims a document. The pipeline with the previous refinement prompt claimed as freely
+as the control and is level with it either way.
+
+**What the net composite does not settle.** At 0.5 a claim the penalty term
+varies 1.75 times as much as the jd term, so the net composite is mostly a
+count of unsupported claims. Its intervals are about twice as wide as the
+composite's. How reliably the authenticity judge counts findings on one document
+has not been measured. The reliability run covered the cold-read axes and the
+authenticity *score*, whose ICC was 0.31. Between versions, with 39 documents
+each, the counts separate cleanly: the current generator's 2.31 against the
+control's 3.90 goes the same way on 12 postings of 13. The price itself is a
+judgement about how much a claim a candidate cannot back up should cost. The table shows
+where each comparison turns, so a different price can be read off it.
+
+The trim experiment reads differently under it. Cutting the control's resume to
+600 words lowers its composite by −0.08 [−0.27, +0.12] but removes 1.08
+unsupported claims a document [0.80, 1.35], 13 postings of 13, and raises its net composite
++0.46 [+0.22, +0.70]. Cutting the pipeline's document to 600 words removes a
+third as many, −0.35 [−0.87, +0.17], and its net composite does not move.
+
 ## Decisions this measurement implies
 
 The results above changed what the scoring design should be. The first two
@@ -912,6 +992,9 @@ Refinement bought +0.38 composite that way, and the gate passed 37 of 39 of its
 documents. Any change that raises jd alignment should be reported with its
 paired change in overstatements and untraceable claims, and a gain that arrives
 with more of either is unproven until a version without them keeps it.
+*Implemented:* every report prints unsupported claims and a net composite, at
+0.5 a claim, beside the composite (*What if an unsupported claim cost
+something?*).
 
 **A document's shape is checked in code, not by a judge.** The cold-read judge
 read a resume whose summary held every role as raw JSON, with no role headings
