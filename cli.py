@@ -209,7 +209,7 @@ def cmd_reliability(args: argparse.Namespace) -> int:
     from collections import defaultdict
 
     from evaluation.contracts import AuthenticityInput, ColdReadInput
-    from evaluation.judges import run_authenticity, run_cold_read
+    from evaluation.judges import run_authenticity, run_cold_read, unsupported_claims
 
     root = pathlib.Path("runs") / args.sweep_id
     samples = sorted(root.glob("*/*/sample-*/resume.md"))
@@ -245,6 +245,11 @@ def cmd_reliability(args: argparse.Namespace) -> int:
             if args.authenticity:
                 auth = run_authenticity(AuthenticityInput(resume=resume, narratives=narratives))
                 axes["authenticity"][key].append(auth.authenticity)
+                # The net composite charges per claim, so the count has to be
+                # reliable on its own, not only the length-normalised score.
+                axes["unsupported_claims"][key].append(
+                    unsupported_claims(len(auth.untraceable), len(auth.overstatements))
+                )
         got = [axes[a][key] for a in ("recruiter_readability",)][0]
         print(f"  {key:52} readability {got}")
 
