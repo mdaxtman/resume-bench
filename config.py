@@ -43,6 +43,16 @@ WEIGHTS = {
 # the first full sweep cleared it. How often an arm is rejected is reported.
 AUTHENTICITY_GATE = 8.5
 
+# Composite points charged per unsupported claim in the net composite (see
+# `evaluation.sweep.net_composite`). The cold-read judge never sees the
+# narratives, so a claim it cannot check reads to it as the skill; the gate
+# fired on 3 of 546 documents. Where a version added unsupported claims and
+# nothing else, the judge paid 0.21 composite a claim for refinement's and 0.39
+# for a summary comparing the candidate with the employer's product. Below that
+# price a benchmark prefers the bolder resume. 0.5 sits above every price
+# measured, so no measured way of adding claims pays.
+CLAIM_COST = 0.5
+
 
 def get_anthropic_api_key() -> str:
     key = os.environ.get("ANTHROPIC_API_KEY")

@@ -11,10 +11,42 @@ import json
 import statistics
 from typing import Any
 
-from config import AUTHENTICITY_GATE, RUNS_DIR
-from evaluation.sweep import passes_gate
+from config import AUTHENTICITY_GATE, CLAIM_COST, RUNS_DIR
+from evaluation.judges import unsupported_claims
+from evaluation.sweep import net_composite, passes_gate
 
-AXES = ("jd_alignment", "recruiter_readability", "authenticity", "hire_intent", "composite")
+AXES = (
+    "jd_alignment",
+    "recruiter_readability",
+    "authenticity",
+    "hire_intent",
+    "composite",
+    "unsupported",
+    "net_composite",
+)
+
+
+def with_claims(row: dict[str, Any]) -> dict[str, Any]:
+    """The row with its unsupported claims counted and its net composite.
+
+    Both are derived from the raw findings every scores.json keeps, so any
+    sweep on disk can be read this way.
+    """
+    unsupported = unsupported_claims(
+        len(row.get("untraceable") or []), len(row.get("overstatements") or [])
+    )
+    return {
+        **row,
+        "unsupported": unsupported,
+        "net_composite": net_composite(float(row["composite"]), unsupported),
+    }
+
+
+_LABELS = {
+    "hire_intent": "hire intent *",
+    "unsupported": "unsupported claims †",
+    "net_composite": "net composite †",
+}
 
 
 def load_sweep(sweep_id: str) -> list[dict[str, Any]]:
@@ -57,7 +89,7 @@ def summarise(rows: list[dict[str, Any]]) -> dict[str, dict[str, tuple[float, fl
     """Mean and spread per axis per arm, over documents that pass the gate."""
     out: dict[str, dict[str, tuple[float, float]]] = {}
     for arm in sorted({r["arm"] for r in rows}):
-        arm_rows = gated([r for r in rows if r["arm"] == arm])
+        arm_rows = [with_claims(r) for r in gated([r for r in rows if r["arm"] == arm])]
         out[arm] = {axis: _stats([float(r[axis]) for r in arm_rows]) for axis in AXES}
     return out
 
@@ -98,9 +130,7 @@ def render(sweep_id: str, rows: list[dict[str, Any]]) -> str:
     ]
     both = "pipeline" in summary and "control" in summary
     for axis in AXES:
-        label = axis.replace("_", " ")
-        if axis == "hire_intent":
-            label += " *"
+        label = _LABELS.get(axis, axis.replace("_", " "))
         cells = []
         for arm in ("pipeline", "control"):
             mean, sd = summary.get(arm, {}).get(axis, (0.0, 0.0))
@@ -126,6 +156,10 @@ def render(sweep_id: str, rows: list[dict[str, Any]]) -> str:
             f"(a JD is a tie when |delta| <= 0.1)"
         )
     lines.append("* hire intent is reported, not folded into the composite.")
+    lines.append(
+        "† untraceable claims count twice, overstatements once; "
+        f"net composite is composite less {CLAIM_COST} per unsupported claim."
+    )
     return "\n".join(lines)
 
 

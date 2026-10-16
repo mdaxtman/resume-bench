@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from config import AUTHENTICITY_GATE, RUNS_DIR, WEIGHTS
+from config import AUTHENTICITY_GATE, CLAIM_COST, RUNS_DIR, WEIGHTS
 from corpus import load_jd
 from evaluation.contracts import AuthenticityInput, ColdReadInput
 from evaluation.control import run_control
@@ -94,6 +94,17 @@ def composite(jd_alignment: float, readability: float) -> float:
         jd_alignment * WEIGHTS["jd_alignment"] + readability * WEIGHTS["recruiter_readability"],
         3,
     )
+
+
+def net_composite(composite: float, unsupported: float) -> float:
+    """Composite less `CLAIM_COST` per unsupported claim.
+
+    Derived when reported rather than stored, like the gate, so the cost can
+    move without re-running a sweep. Composite itself is unchanged: it is what
+    a reader who cannot check the claims makes of the document, and every
+    earlier result is stated in it.
+    """
+    return round(composite - CLAIM_COST * unsupported, 3)
 
 
 def passes_gate(authenticity: float) -> bool:

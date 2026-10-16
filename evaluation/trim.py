@@ -29,7 +29,7 @@ from typing import Any
 from config import JUDGE_MODEL, PROMPTS_DIR, RUNS_DIR
 from corpus import load_jd
 from evaluation.keywords import Keyword, cached_keywords, coverage, term_present
-from evaluation.report import gate_record, gated
+from evaluation.report import gate_record, gated, with_claims
 from evaluation.rescore import strip_leading_title
 from evaluation.sweep import score_document
 from pipeline.anthropic_utils import call_model, dict_items
@@ -364,7 +364,7 @@ def load_trim(trim_id: str) -> list[dict[str, Any]]:
         raise ValueError(f"No trim experiment at {root}")
     rows = []
     for path in sorted(root.glob("*/*/sample-*/scores.json")):
-        row = dict(json.loads(path.read_text()))
+        row = with_claims(json.loads(path.read_text()))
         cov = json.loads((path.parent / "coverage.json").read_text())
         trim = json.loads((path.parent / "trim.json").read_text())
         row["coverage"] = 100 * float(cov["required_coverage"] or 0.0)
@@ -386,6 +386,8 @@ _LEVELS = [
     ("coverage", "coverage (req, %)"),
     ("authenticity", "authenticity"),
     ("composite", "composite"),
+    ("unsupported", "unsupported claims"),
+    ("net_composite", "net composite"),
 ]
 _DELTAS = [k for k, _ in _LEVELS if k not in ("words", "bullets", "authenticity")]
 

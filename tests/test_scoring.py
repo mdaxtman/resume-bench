@@ -6,10 +6,10 @@ untraceable claim" rubric that had no relation to document length.
 
 import pytest
 
-from config import AUTHENTICITY_GATE, WEIGHTS
-from evaluation.judges import authenticity_score
+from config import AUTHENTICITY_GATE, CLAIM_COST, WEIGHTS
+from evaluation.judges import authenticity_score, unsupported_claims
 from evaluation.report import per_jd_record
-from evaluation.sweep import composite, passes_gate
+from evaluation.sweep import composite, net_composite, passes_gate
 
 
 def test_a_clean_resume_scores_ten() -> None:
@@ -162,6 +162,56 @@ def test_a_single_arm_sweep_does_not_report_a_delta_against_nothing() -> None:
     from evaluation.report import render
 
     out = render("one-arm", [_scored("pipeline", 9.5, 6.0)])
-    assert "0.00 ± 0.00" not in out
+    axis_rows = [line for line in out.splitlines() if "±" in line]
+    assert axis_rows and all(line.split()[-2:] == ["—", "—"] for line in axis_rows)
     assert "+6.00" not in out and "+8.00" not in out
     assert "Per-JD record" not in out
+
+
+def test_an_untraceable_claim_counts_twice_an_overstatement_once() -> None:
+    """The same weights the authenticity score uses, so the two never disagree
+    about what a finding is worth."""
+    assert unsupported_claims(untraceable=1, overstatements=0) == 2.0
+    assert unsupported_claims(untraceable=0, overstatements=1) == 1.0
+    assert authenticity_score(claims_checked=10, untraceable=1, overstatements=1) == 10.0 * (
+        1 - unsupported_claims(1, 1) / (2 * 10)
+    )
+
+
+def test_net_composite_charges_the_cost_per_unsupported_claim() -> None:
+    assert net_composite(7.0, 0.0) == 7.0
+    assert net_composite(7.0, 3.0) == pytest.approx(7.0 - 3 * CLAIM_COST)
+
+
+def test_supported_claims_cost_nothing_however_many() -> None:
+    """Unlike the flat rubric the authenticity score replaced, length is not a
+    penalty here: only a claim the narratives do not support is charged."""
+    from evaluation.report import with_claims
+
+    long_clean = with_claims(
+        {"composite": 7.0, "claims_checked": 60, "untraceable": [], "overstatements": []}
+    )
+    assert long_clean["net_composite"] == 7.0
+
+
+def test_the_net_composite_is_derived_from_the_raw_findings() -> None:
+    """Every scores.json keeps the findings, so any sweep on disk can be read
+    with a cost per claim, and the cost can move without re-running one."""
+    from evaluation.report import with_claims
+
+    row = with_claims({"composite": 7.0, "untraceable": ["a"], "overstatements": ["b", "c"]})
+    assert row["unsupported"] == 4.0
+    assert row["net_composite"] == pytest.approx(7.0 - 4 * CLAIM_COST)
+
+
+def test_the_report_shows_unsupported_claims_beside_the_composite() -> None:
+    from evaluation.report import render
+
+    rows = [
+        {**_scored("pipeline", 9.5, 6.0), "overstatements": ["x"]},
+        {**_scored("control", 9.5, 6.0), "overstatements": ["x", "y", "z"]},
+    ]
+    out = render("claims-sweep", rows)
+    assert "unsupported claims †" in out and "net composite †" in out
+    net = next(line for line in out.splitlines() if line.startswith("net composite"))
+    assert net.split()[-1] == f"{2 * CLAIM_COST:+.2f}"

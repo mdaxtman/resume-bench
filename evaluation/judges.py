@@ -134,6 +134,17 @@ def build_authenticity_request(inp: AuthenticityInput) -> dict[str, Any]:
     )
 
 
+def unsupported_claims(untraceable: int, overstatements: int) -> float:
+    """Unsupported claims in a document, weighted as the authenticity score
+    weights them: an untraceable claim counts twice, an overstatement once.
+
+    Not divided by length. The authenticity score answers "how much of what
+    this resume asserts is supported"; this answers "how many claims could a
+    reader catch", which is what a cost per claim needs.
+    """
+    return _UNTRACEABLE_PENALTY * untraceable + _OVERSTATEMENT_PENALTY * overstatements
+
+
 def authenticity_score(claims_checked: int, untraceable: int, overstatements: int) -> float:
     """Length-normalised authenticity, 0–10.
 
@@ -152,7 +163,7 @@ def authenticity_score(claims_checked: int, untraceable: int, overstatements: in
     """
     if claims_checked <= 0:
         raise ValueError("claims_checked must be positive to normalise a score")
-    penalty = _UNTRACEABLE_PENALTY * untraceable + _OVERSTATEMENT_PENALTY * overstatements
+    penalty = unsupported_claims(untraceable, overstatements)
     worst_case = _UNTRACEABLE_PENALTY * claims_checked
     return round(max(0.0, 10.0 * (1.0 - penalty / worst_case)), 2)
 
