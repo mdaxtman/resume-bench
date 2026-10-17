@@ -1,5 +1,6 @@
 """Refinement stage — improve resume while preserving voice."""
 
+import re
 from typing import Any, NotRequired, TypedDict, cast
 
 from config import PIPELINE_MODEL
@@ -35,6 +36,43 @@ ADD_NOTHING = (
     "as evidence), tightening, or hygiene. Add nothing: no bullets, no clauses, no "
     "skills, no summary sentences."
 )
+
+# A role heading and the date line the renderer puts under it.
+_ROLE_HEADING = re.compile(r"^###(?!#)")
+_DATE_LINE = re.compile(r"^_[^_].*_$")
+
+
+def _role_dates(md: str) -> dict[str, str]:
+    lines = [line.strip() for line in md.splitlines()]
+    return {
+        line: lines[i + 1]
+        for i, line in enumerate(lines[:-1])
+        if _ROLE_HEADING.match(line) and _DATE_LINE.match(lines[i + 1])
+    }
+
+
+def keep_role_dates(draft: str, refined: str) -> str:
+    """Restore any role's date line that refinement changed.
+
+    None of refinement's three edits changes a date. Without today's date,
+    refinement took the current role's recent start for a typo and moved it
+    back a year or two in 4 of 39 documents. The draft's dates are the career
+    overview's (the generator had all 39 right), so the draft's line goes back
+    under the same heading. A heading refinement reworded is left alone.
+    """
+    want = _role_dates(draft)
+    lines = refined.splitlines()
+    changed = False
+    for i, line in enumerate(lines[:-1]):
+        dates = want.get(line.strip())
+        below = lines[i + 1].strip()
+        if dates is not None and _DATE_LINE.match(below) and below != dates:
+            lines[i + 1] = dates
+            changed = True
+    if not changed:
+        return refined
+    return "\n".join(lines) + ("\n" if refined.endswith("\n") else "")
+
 
 _TOOL_NAME = "submit_refined_resume"
 
@@ -142,5 +180,7 @@ def run_refinement(
         raise RuntimeError(
             f"refinement returned no refined_content (keys: {sorted(result.keys())})"
         )
+    if isinstance(result["refined_content"], str):
+        result["refined_content"] = keep_role_dates(draft, result["refined_content"])
 
     return cast(RefinementOutput, result)
