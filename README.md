@@ -135,7 +135,10 @@ writing for each posting?* writes an exhaustive, verified bank once and only
 chooses from it for each posting. It carries the fewest unsupported claims of
 any version and loses about a point of jd alignment and hire intent. The one
 part a bank cannot supply, a summary written for the posting, turns out to be
-the largest single effect measured.
+the largest single effect measured. *Does a summary written last do better?*
+finds that it does not. On the pipeline's own documents, whose bullets are
+written for the posting, the summary adds readability but no jd alignment,
+and both judges charge it with claims.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -1215,7 +1218,9 @@ is the summary alone. Writing it for the posting raised jd alignment +0.74
 [+0.41, +1.07], hire intent +0.85 and composite +0.60, on 12 or 13 postings of
 13. Until now the largest effect measured was refinement on the drafts written
 before the bullet budget: jd alignment +0.74, composite +0.50. Here a single
-55-word paragraph matches it.
+55-word paragraph matches it. On the pipeline's own documents, whose bullets
+are written for the posting, the summary adds no jd alignment (*Does a summary
+written last do better?*).
 
 **What that summary costs depends on the judge.** It was written from the
 chosen document, without the narratives. The committed judge charges it 1.44
@@ -1236,6 +1241,76 @@ the narratives. The rater and the 830-word budget were each set once. A
 smaller budget would drop the low-rated bullets, but the trim experiment
 found that 600 words costs jd alignment and hire intent. The banks were
 written by a model, not curated by the candidate.
+
+### Does a summary written last do better?
+
+The generator writes the summary first, while it is still choosing the
+bullets, and refinement may not add a summary sentence. On the master resume,
+a summary written for the posting was the largest effect measured, but it
+could not see the narratives, and the two judges disagreed about its claims.
+This arm writes the summary last, from the finished document, with the
+narratives in view, under the generator's own summary rule and ethics. It is
+told to find the narrative passage behind every statement and to cut or
+narrow any statement that says more than its passage. The writer never sees
+the summary it replaces.
+
+It ran on the current pipeline's 39 documents, with nothing but the summary
+changed. `full` is each document as the pipeline finished it, re-scored in
+the same run. `none` removes the summary. `last` rewrites it. The rule was
+fixed before the run (`8b83f79`). `last` is kept only if it is honest, beats
+`full` on the net composite with jd alignment not demonstrably lower, and the
+second judge agrees.
+
+```
+paired by job (13), minus full   last                    none
+jd alignment                     +0.00 [-0.23, +0.23]    -0.05 [-0.27, +0.16]
+readability                      +0.04 [-0.10, +0.19]    -0.33 [-0.42, -0.23]
+  opening                        +0.10 [-0.12, +0.33]    -0.69 [-0.96, -0.43]
+composite                        +0.02 [-0.14, +0.17]    -0.14 [-0.29, +0.00]
+unsupported, committed judge     -0.05 [-0.37, +0.27]    -0.54 [-0.81, -0.27]
+unsupported, second judge        -0.33 [-0.95, +0.29]    -0.97 [-1.50, -0.45]
+net composite, committed judge   +0.04 [-0.16, +0.24]    +0.13 [-0.07, +0.32]
+net composite, second judge      +0.18 [-0.13, +0.50]    +0.34 [+0.01, +0.68]
+```
+
+**It does not pass, and the arm is reverted.** Its net composite interval
+spans zero. It also fails the honesty test: 3 documents have an untraceable
+claim against `full`'s 2. None of the three is in the summary. They are two
+role start dates and a skills entry, text `full` shares word for word, and
+one of the dates went unflagged under `full`. That failure is the judge's
+noise on unchanged text, but the rule counts it as written.
+
+**Written last and checked, the summary is no better.** It is level with the
+generator's on every score, at the same length (60 words against 59). The
+check barely moved its claims. Measured against no summary, the rewritten one
+carries 0.49 claims a document under the committed judge, against the
+generator's 0.54. Under the second judge it carries 0.64, against 0.97.
+Neither difference is significant.
+
+**In the pipeline, the summary adds no jd alignment.** Removing it moves jd
+alignment −0.05, inside noise. What it buys is readability, through the
+opening: −0.69 without it, lower on 11 postings and higher on none, and
+readability −0.33 on all 13. This qualifies the master resume's result. Its
++0.74 was tailoring that the bank's bullets lacked. When the bullets are
+written for the posting, the summary adds nothing to alignment.
+
+**Both judges charge the summary with claims.** The committed judge charges
+0.54 a document and the second judge 0.97. Here the second judge charges more,
+where on the master resume's summary it charged less. At 0.5 a claim, the
+document without a summary nets +0.13 under the committed judge and +0.34
+[+0.01, +0.68] under the second. `none` was reported, not part of the rule,
+so nothing changes. A summary that pays for itself at this price would need
+to keep the opening and drop the claims, and writing it last did neither.
+
+**The same documents, re-scored a day later, did not move.** Composite moved
+−0.04 [−0.18, +0.11]. Unsupported claims moved −0.13 under the committed judge
+and +0.18 under the second. Every interval spans zero.
+
+**Five of the 39 pipeline documents get the current role wrong.** Four start it
+a year or two early, so it overlaps the role before it, and one lists it
+second, against the generator's rule that roles run most recent first. The
+judge charges each early date as an untraceable claim, and those dates are the
+only untraceable claims in `full`.
 
 ## Decisions this measurement implies
 
@@ -1305,7 +1380,10 @@ read a resume whose summary held every role as raw JSON, with no role headings
 below it, and gave it 9.0 on jd alignment and 7.0 on readability with no
 mention of the markup. It reads for content. Whether a stage's output has the
 fields and form it should is a validator's job, at the stage that produced it,
-with a retry.
+with a retry. Dates and role order are the next such check: five of the
+current pipeline's 39 documents start the current role a year or two early or
+list it second (*Does a summary written last do better?*), and the narratives'
+career overview gives every date.
 
 **A claim count needs a second judge before it decides anything.** The
 authenticity judge counts claims it has itself cleared: 7% of its findings.
@@ -1317,7 +1395,9 @@ instrument. Between the control and the pipeline, both judges agree. Between
 two versions of the generator they do not, so a decision between close
 versions should not rest on either judge's count alone. On a summary
 written without the narratives, they disagree in direction (*Does a master
-resume beat writing for each posting?*). The verdict judge lives outside the
+resume beat writing for each posting?*). On the pipeline's own summary they
+agree in direction and differ in size, 0.54 claims a document against 0.97
+(*Does a summary written last do better?*). The verdict judge lives outside the
 harness for now. It would need to become a command, so that
 any comparison can be re-judged with it.
 
