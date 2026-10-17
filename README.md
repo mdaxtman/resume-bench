@@ -130,7 +130,12 @@ ahead of the single prompt at a price per claim. *Does the claim count depend
 on how the judge is asked?* finds that it does: every output format tried
 changed what the authenticity judge counts. A second judge confirms that the
 single prompt carries more unsupported claims than the pipeline, but not any
-difference between two versions of the generator.
+difference between two versions of the generator. *Does a master resume beat
+writing for each posting?* writes an exhaustive, verified bank once and only
+chooses from it for each posting. It carries the fewest unsupported claims of
+any version and loses about a point of jd alignment and hire intent. The one
+part a bank cannot supply, a summary written for the posting, turns out to be
+the largest single effect measured.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -1132,6 +1137,106 @@ pipeline's lead is +0.59 [−0.01, +1.18], and the previous pipeline's is +0.57
 survive the change of judge. Any result that rests on one judge's claim count
 should be checked against the other before it is acted on.
 
+### Does a master resume beat writing for each posting?
+
+Every version above writes the resume again for each posting, so the wording,
+the choice of material and every claim are made again each time. The trim
+experiment suggested that choosing could pay better than writing. Cutting the
+single prompt's resume to 600 words removed about one unsupported claim a
+document, on all 13 postings. This arm writes once and afterwards only chooses.
+
+A bank is written from the narratives with no posting in view. It holds every
+bullet the narratives support, one fact a bullet, plus every skill and six
+positioning statements, under the generator's own bullet and ethics rules.
+Each item quotes the passage of the narratives it rests on, and an item whose
+passage is not in the narratives verbatim is discarded. That check is string
+matching, not a judge. Three banks were written, one per sample index. Each
+holds 168 to 199 bullets, about 4,000 words. The check discarded 1 to 4
+bullets and 2 or 3 skills from each.
+
+For each posting, a rater scores every bullet and skill for relevance, as in
+the trim experiment, and picks one positioning statement. Bullets are removed,
+least relevant first, until the document is within 830 words, the current
+pipeline's mean. Every role keeps one bullet and no project more than four.
+What remains is the bank's wording, in the bank's order. In `bank-summary` the
+same choice gets a summary written for the posting from the chosen document
+alone. The rule was fixed before the run (`d8b1eba`). A condition is kept only
+if it is honest, beats the current pipeline on the net composite with jd
+alignment not demonstrably lower, and the second judge agrees. The run also
+covered the redaction test's posting. It has no pipeline documents to pair
+with, so it is left out.
+
+```
+paired by job (13), minus the current pipeline   jd alignment            hire intent             composite               net composite
+bank                                             -1.08 [-1.40, -0.76]    -1.08 [-1.48, -0.67]    -0.88 [-1.13, -0.64]    -0.45 [-0.73, -0.17]
+bank-summary                                     -0.33 [-0.70, +0.03]    -0.23 [-0.69, +0.23]    -0.28 [-0.56, -0.01]    -0.56 [-0.87, -0.26]
+```
+
+```
+unsupported claims a document     committed judge          second judge
+control (single prompt)           3.90                     4.00
+current pipeline                  2.31                     2.49
+bank                              1.44                     1.26
+bank-summary                      2.87                     1.62
+
+paired by job, minus the pipeline
+bank                              -0.87 [-1.30, -0.44]     -1.23 [-1.84, -0.62]
+bank-summary                      +0.56 [+0.05, +1.08]     -0.87 [-1.50, -0.25]
+```
+
+**Neither condition passes, and the arm is reverted.** `bank` is honest: 39 of
+39 pass the gate and 1 has an untraceable claim. Its net composite is below
+the pipeline's, and its jd alignment is demonstrably lower. `bank-summary` has
+5 documents with an untraceable claim and a lower net composite.
+
+**The bank is the most honest version measured and the least persuasive.** It
+carries 1.44 unsupported claims a document, fewer than the pipeline under both
+judges. It loses about a point of jd alignment and of hire intent, on 12 and
+11 postings of 13. For its net composite to match the pipeline's, a claim
+would have to cost about 1.0 composite, twice `CLAIM_COST`. Against the
+single prompt its net composite is level: +0.18 [−0.09, +0.45].
+
+**Choosing cannot tailor, and the judges say so.** Their notes say the
+summary does not connect to the role. They say the bullets are accurate, but
+framed around the candidate's past products rather than what the posting
+asks for. The opening part of readability falls −1.08 on all 13 postings.
+The generator writes each bullet in the posting's terms, and a bank written
+for no posting cannot.
+
+**The bank also fills the page with bullets it rated low.** The rater gave 3%
+of the bank's bullets its top rating for a posting. Filling 830 words took
+about 30 bullets, a third of them rated 0 or 1. Economy fell −0.51. Only 12
+skills cleared the rater's threshold, where the pipeline lists 35.
+Required-keyword coverage fell 3.5 points, with an interval spanning zero.
+
+**A summary written for the posting is the largest single effect measured
+here.** The two conditions share every bullet and skill, so their difference
+is the summary alone. Writing it for the posting raised jd alignment +0.74
+[+0.41, +1.07], hire intent +0.85 and composite +0.60, on 12 or 13 postings of
+13. Until now the largest effect measured was refinement on the drafts written
+before the bullet budget: jd alignment +0.74, composite +0.50. Here a single
+55-word paragraph matches it.
+
+**What that summary costs depends on the judge.** It was written from the
+chosen document, without the narratives. The committed judge charges it 1.44
+more unsupported claims a document, nearly all overstatements, and about
+two-thirds of its findings on these documents name the summary. Some of
+those are real: a scope widened from one team to the whole employer. Others
+are the counting flaw described above. One summary rounded the candidate's
+years of experience down, and the judge counted it as an overstatement in a
+note saying it understates them. The second judge charges the summary 0.36
+claims, and its net composite gain is +0.42 [+0.09, +0.76]. Measured against
+the pipeline, the two judges disagree about direction, and each interval
+clears zero.
+
+**What this does not show.** The bank was written for no posting, which is
+the idea being tested. A bank whose chosen bullets are reworded for the
+posting would be a different arm: the generator reading a bank instead of
+the narratives. The rater and the 830-word budget were each set once. A
+smaller budget would drop the low-rated bullets, but the trim experiment
+found that 600 words costs jd alignment and hire intent. The banks were
+written by a model, not curated by the candidate.
+
 ## Decisions this measurement implies
 
 The results above changed what the scoring design should be. The first two
@@ -1210,8 +1315,10 @@ document (*Does the claim count depend on how the judge is asked?*). The
 scoring judge was left as it is. The verdict judge is kept as a second
 instrument. Between the control and the pipeline, both judges agree. Between
 two versions of the generator they do not, so a decision between close
-versions should not rest on either judge's count alone. The verdict judge
-lives outside the harness for now. It would need to become a command, so that
+versions should not rest on either judge's count alone. On a summary
+written without the narratives, they disagree in direction (*Does a master
+resume beat writing for each posting?*). The verdict judge lives outside the
+harness for now. It would need to become a command, so that
 any comparison can be re-judged with it.
 
 ## A worked example: an input shape that broke a stage
