@@ -121,7 +121,16 @@ summary to the candidate's own work and the gain goes with it. *What if an
 unsupported claim cost something?* re-ranks every version with a price on each
 claim the narratives do not support. At that price the order reverses: every
 version of the current pipeline and generator scores above the single prompt,
-seven of the nine with an interval clear of zero.
+seven of the nine with an interval clear of zero. *Does the own-work generator
+pass at a price per claim?* holds its skills list to what the narratives show.
+It passes a rule fixed in advance by a margin of 0.004 and is now the
+generator, but a fresh run puts it level with the old one. *The whole pipeline
+with the new generator* finds the new pipeline level with the previous one and
+ahead of the single prompt at a price per claim. *Does the claim count depend
+on how the judge is asked?* finds that it does: every output format tried
+changed what the authenticity judge counts. A second judge confirms that the
+single prompt carries more unsupported claims than the pipeline, but not any
+difference between two versions of the generator.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -778,9 +787,10 @@ Some of the control's lead is stretching the generator refuses to do:
 "Next.js-adjacent", "A/B-test-ready" and "GCP-adjacent" make three of its 39
 documents untraceable.
 
-Underneath both, the generator never sees the posting. It knows the posting
-only through the fit report's paraphrase, while its request asks for "the
-exact terminology from the JD".
+Underneath both, the generator never saw the posting. It knew the posting
+only through the fit report's paraphrase, while its request asked for "the
+exact terminology from the JD". (It now reads the posting; see *Does the
+own-work generator pass at a price per claim?*)
 
 Three changes, each made alone and then all together, on the same 39 saved
 fit reports. **jd**: the generator reads the posting. **skills**: the skills
@@ -919,19 +929,208 @@ as the control and is level with it either way.
 **What the net composite does not settle.** At 0.5 a claim the penalty term
 varies 1.75 times as much as the jd term, so the net composite is mostly a
 count of unsupported claims. Its intervals are about twice as wide as the
-composite's. How reliably the authenticity judge counts findings on one document
-has not been measured. The reliability run covered the cold-read axes and the
-authenticity *score*, whose ICC was 0.31. Between versions, with 39 documents
-each, the counts separate cleanly: the current generator's 2.31 against the
-control's 3.90 goes the same way on 12 postings of 13. The price itself is a
-judgement about how much a claim a candidate cannot back up should cost. The table shows
-where each comparison turns, so a different price can be read off it.
+composite's. The price itself is a judgement about how much a claim a
+candidate cannot back up should cost. The table shows where each comparison
+turns, so a different price can be read off it.
 
-The trim experiment reads differently under it. Cutting the control's resume to
-600 words lowers its composite by −0.08 [−0.27, +0.12] but removes 1.08
-unsupported claims a document [0.80, 1.35], 13 postings of 13, and raises its net composite
-+0.46 [+0.22, +0.70]. Cutting the pipeline's document to 600 words removes a
-third as many, −0.35 [−0.87, +0.17], and its net composite does not move.
+**How consistently the judge counts.** The reliability run above covered the
+authenticity *score*, not the count the net composite charges. Ten documents
+spanning the range of unsupported claims, drawn from the control, the current
+draft, the own-work generator and the current pipeline, were each judged four
+more times. Nine returned nearly the same count every time: within-document sd
+0.20 claims, ICC 0.95. The tenth returned 6, 3, 2 and 8. The judge could not
+settle whether one skills-list entry was untraceable, overstated or fine. That
+entry was a cloud service the narratives mention only as where a product stored
+its files. In one repeat the judge also listed the same bullet as both untraceable
+and overstated. Across all ten documents the ICC is 0.68 and the within-document sd
+is 0.78 claims. That is 0.39 of net composite on one document and 0.06 on a
+version's mean of 39 documents, small beside the gaps between versions. The current
+generator's 2.31 claims against the control's 3.90 go the same way on 12 postings
+of 13.
+
+**The judge also counts claims it has cleared.** Of the 1,568 findings on the
+546 documents scored under the current judges, 7% carry the judge's own verdict
+that the claim is fine: "not an overstatement", "excluded", "included here only
+to confirm it was checked". The schema gives a claim that was checked and found
+supported nowhere to go except `claims_checked`, so some of those claims end up
+in the findings and are counted. The control carries the most, 0.26 a document
+against the current pipeline's 0.13. With them matched by phrase and removed,
+the generator's leads hold. The current pipeline's lead touches zero:
+
+```
+net composite minus the control     as counted              cleared findings removed
+pipeline, strict refinement         +0.51 [+0.05, +0.97]    +0.44 [-0.01, +0.90]
+generator, own work only            +0.74 [+0.30, +1.18]    +0.68 [+0.29, +1.06]
+generator, all three changes        +0.67 [+0.22, +1.12]    +0.66 [+0.21, +1.11]
+draft, current generator            +0.59 [+0.15, +1.03]    +0.56 [+0.15, +0.98]
+```
+
+Removing them makes the count less consistent, not more. On the repeats, the
+judge lists the same doubtful claim every time and only sometimes adds that it
+is fine. On the nine steady documents the within-document sd rises from 0.20 to
+0.38 claims when the cleared ones are removed. Giving each finding a verdict
+in the judge's output was tried next. It changed what the judge counts, not
+only how it records it; see *Does the claim count depend on how the judge is
+asked?*
+
+The trim experiment reads differently under the net composite. Cutting the
+control's resume to 600 words lowers its composite by −0.08 [−0.27, +0.12] but
+removes 1.08 unsupported claims a document [0.80, 1.35], 13 postings of 13, and
+raises its net composite +0.46 [+0.22, +0.70]. Cutting the pipeline's document
+to 600 words removes a third as many, −0.35 [−0.87, +0.17], and its net
+composite does not move.
+
+### Does the own-work generator pass at a price per claim?
+
+The own-work generator ranks first above, but it failed its rule on two
+counts: no jd-alignment gain, and 2 of 39 documents with an untraceable claim.
+Both untraceable claims were skills-list entries, and the skills lists held 6
+of its 75 findings. Among them were a practice the posting asked for that the
+narratives never mention, a cloud service they name only as where a product
+stored its files, and a technology they say the candidate has not worked
+with. One more condition held the skills list to what the narratives show.
+Each entry must be something the narratives show the candidate working with.
+The posting asking for it is not evidence. Neither is a narrative naming it as
+part of a product, a system or another team's work. Light work may be listed
+at that depth ("GraphQL (exposure)").
+
+The rule was fixed before the run (`37fcd7f`) and asks the question the net
+composite now asks. It allows at most 1 of 39 documents with an untraceable
+claim and requires all 39 to pass the gate. Against the current drafts, the
+net composite gain must have an interval clear of zero, and jd alignment must
+not be demonstrably lower.
+
+```
+skills held to the narratives,   jd alignment            composite               unsupported claims      net composite
+paired by job (13)
+vs current drafts                +0.10 [-0.28, +0.48]    +0.06 [-0.24, +0.36]    -0.56 [-0.95, -0.18]    +0.34 [+0.00, +0.68]
+vs unchanged generator (re-run)  +0.23 [-0.15, +0.61]    +0.19 [-0.09, +0.46]    -0.67 [-1.09, -0.25]    +0.52 [+0.20, +0.83]
+vs own work only                 +0.10 [-0.12, +0.33]    +0.07 [-0.12, +0.27]    -0.23 [-0.61, +0.15]    +0.19 [-0.06, +0.44]
+vs control                       -0.33 [-0.57, -0.10]    -0.15 [-0.31, +0.02]    -2.15 [-2.79, -1.52]    +0.93 [+0.57, +1.29]
+```
+
+**It passes, with almost nothing to spare.** Against the current drafts, the
+lower bound of the net composite gain is +0.004. One document of 39 has an
+untraceable claim: the same cloud-service entry, for the same posting, that the
+judge could not settle when it judged one document four times. None falls below
+the gate, and no summary compares the candidate with the employer. A slightly
+different count would have failed it. With the findings the judge itself cleared
+removed, the lower bound is −0.02, and the net composite rises for 8 postings
+and falls for 4. Against the re-run of the unchanged generator the gain is
+clear, +0.52 [+0.20, +0.83]. Against the single prompt the net composite is
+higher on all 13 postings.
+
+**Under the rule, it is now the generator.** The prompt changes are in
+`prompts/generator.md`, the generator requires the posting, and the sweep
+passes it. In the sections above, "current generator" means the version before
+this one.
+
+**Its advantage did not replicate.** It was adopted at the edge of its rule,
+so a fresh run should be expected to fall back, and it did. A full pipeline
+sweep generated 39 new drafts with it, from new fit reports (*The whole
+pipeline with the new generator*). Against the previous generator's drafts,
+the new drafts' net composite is +0.05 [−0.32, +0.43]. Against the run that
+passed the rule it is −0.29 [−0.49, −0.08]. Under a second authenticity judge,
+the run that passed carries no fewer unsupported claims than the previous
+drafts: +0.13 [−0.80, +1.06]. The new generator is level with the old one, not
+better. It stays because the whole-pipeline rule keeps it unless it is
+demonstrably worse.
+
+There is one side effect. The prompt's example, "GraphQL (exposure)", now
+appears in 38 of 39 drafts. It appeared in 26 of 39 own-work drafts and 3 of 39
+of the current drafts. The narratives support GraphQL at that depth, and no
+finding concerns the skills entry. Still, the drafts are copying the example,
+not choosing an entry for the posting.
+
+### The whole pipeline with the new generator
+
+A fresh sweep ran all 13 postings, 3 samples each, through the whole pipeline:
+new fit reports, the new generator, then strict refinement. Its rule was fixed
+before the run (`f5749f5`). The generator stays unless the new pipeline's net
+composite is demonstrably below the previous pipeline's. Each new draft was
+also scored before refinement.
+
+```
+paired by job (13)                   jd alignment            composite               unsupported claims      net composite
+new pipeline vs previous pipeline    +0.10 [-0.24, +0.45]    +0.07 [-0.21, +0.35]    -0.10 [-0.53, +0.32]    +0.12 [-0.22, +0.46]
+new pipeline vs control              -0.33 [-0.55, -0.12]    -0.17 [-0.33, -0.00]    -1.59 [-2.48, -0.70]    +0.63 [+0.14, +1.11]
+refinement on the new drafts         +0.21 [-0.04, +0.45]    +0.14 [-0.05, +0.32]    +0.31 [+0.05, +0.56]    -0.01 [-0.18, +0.15]
+```
+
+**The new pipeline is level with the previous one, and the generator stays.**
+Every difference between them is inside noise. Against the single prompt it
+repeats the previous pipeline's result. Its composite is lower, −0.17. It
+carries 1.59 fewer unsupported claims a document, on 12 postings of 13, and
+its net composite is higher, +0.63 [+0.14, +1.11]. None of its 39 documents
+fell below the gate.
+
+**Refinement still buys its gain with claims.** On the new drafts it raises
+jd alignment +0.21 and adds 0.31 unsupported claims a document. Its net
+composite does not move. The strict refinement prompt was written to add no
+claims (*Can refinement stop adding claims?*), and on the previous drafts it
+added none that could be measured: +0.10 [−0.19, +0.39]. On these drafts it
+adds them for 7 postings and removes them for 1.
+
+### Does the claim count depend on how the judge is asked?
+
+The authenticity judge's output has two lists, untraceable and overstated, and
+7% of what it writes into them are claims it then clears in the same entry.
+Three other output formats were tried on the ten documents from the
+consistency check, each judged four times:
+
+- a third list, `cleared`, after the two counted ones
+- a `review` of every doubtful claim, written before the counted lists
+- each finding carrying a verdict (untraceable, overstated or supported),
+  written after its reason, with `supported` not counted
+
+```
+ten documents, four repeats       unsupported a document    control   others   within sd   ICC    r with the
+                                                                                                  committed judge
+committed: two lists              2.42                      3.50      2.16     0.78        0.68   —
+two lists and `cleared`           1.90                      3.00      1.62     0.39        0.77   +0.67
+`review` first                    2.65                      2.38      2.72     0.58        0.57   -0.33
+a verdict on each finding         3.52                      4.12      3.38     0.94        0.35   +0.05
+```
+
+**Each format changed what the judge counts, not only how it records it.**
+Wherever a cleared claim had somewhere to go, the judge used it as a worklog:
+the verdict format withdrew 25 claims a document, and up to 40. That turns a
+search for problems into a claim-by-claim audit, which judges differently.
+
+- With a `cleared` list after the counted ones, the judge still wrote
+  "retracted — see cleared" into the counted lists, 6 of 75 entries.
+- Written first, the review cleared claims on a control document that the
+  committed judge flagged on all four repeats. One of them it described as
+  "could overstate scope", then left out of both lists. Across the ten
+  documents its counts run against the committed judge's (r −0.33).
+- The verdict format is the least consistent of the four.
+
+The judges agree little document by document. The verdict judge's
+counts correlate +0.38 with the committed judge's over 195 documents. So the
+scoring judge was not changed, and every count on disk stays comparable.
+
+**The verdict judge was kept as a second instrument instead.** It re-judged
+the control, the previous drafts, the strict pipeline, the drafts that passed
+the generator rule, and the new pipeline. The rule, fixed first (`f5749f5`):
+unless the control carries demonstrably more unsupported claims than both
+pipelines under it too, the net composite's lead over the single prompt is not
+reported as a result.
+
+```
+control minus, paired by job (13)    unsupported claims, committed    unsupported claims, second judge
+previous pipeline (strict)           +1.49 [+0.63, +2.34]             +1.62 [+0.56, +2.67]
+new pipeline                         +1.59 [+0.70, +2.48]             +1.51 [+0.37, +2.66]
+previous drafts                      +1.59 [+0.80, +2.38]             +1.46 [+0.22, +2.70]
+drafts that passed the rule          +2.15 [+1.52, +2.79]             +1.33 [+0.26, +2.40]
+```
+
+**That the control carries more unsupported claims holds under both judges.**
+The intervals clear zero under each, so the rule is met. The net composite's
+lead is weaker under the second judge, because that judge is noisier. The new
+pipeline's lead is +0.59 [−0.01, +1.18], and the previous pipeline's is +0.57
+[−0.02, +1.17]. A difference between two versions of the generator does not
+survive the change of judge. Any result that rests on one judge's claim count
+should be checked against the other before it is acted on.
 
 ## Decisions this measurement implies
 
@@ -1003,6 +1202,18 @@ mention of the markup. It reads for content. Whether a stage's output has the
 fields and form it should is a validator's job, at the stage that produced it,
 with a retry.
 
+**A claim count needs a second judge before it decides anything.** The
+authenticity judge counts claims it has itself cleared: 7% of its findings.
+Giving each finding a verdict was tried in three formats. Each changed what the
+judge counts, and the two judges agree on little at the level of one
+document (*Does the claim count depend on how the judge is asked?*). The
+scoring judge was left as it is. The verdict judge is kept as a second
+instrument. Between the control and the pipeline, both judges agree. Between
+two versions of the generator they do not, so a decision between close
+versions should not rest on either judge's count alone. The verdict judge
+lives outside the harness for now. It would need to become a command, so that
+any comparison can be re-judged with it.
+
 ## A worked example: an input shape that broke a stage
 
 One JD failed the fit assessment reproducibly. The stage returned a well-formed
@@ -1068,7 +1279,9 @@ score movement run-to-run variance rather than a result.
 **`reliability`** re-scores the same documents repeatedly and reports ICC per
 axis. Run this before tuning anything: an axis whose within-document variation
 rivals its between-document variation cannot detect a prompt change however large
-the change is.
+the change is. With `--authenticity` it also re-runs the authenticity judge
+and reports both the score and the count of unsupported claims the net
+composite charges.
 
 **`coverage`** computes literal keyword coverage over documents already on disk.
 Terms are extracted once per posting, cached, and applied identically to both

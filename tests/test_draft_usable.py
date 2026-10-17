@@ -47,6 +47,6 @@ def test_markup_is_rejected_even_when_every_field_is_present() -> None:
 
 def test_the_generator_validates_and_retries() -> None:
     with patch.object(generator, "call_model", return_value=GOOD) as call:
-        generator.run_generator("narratives", {"matches": []}, None)
+        generator.run_generator("narratives", {"matches": []}, None, "posting")
     assert call.call_args.kwargs["validate"] is draft_is_usable
     assert call.call_args.kwargs["attempts"] > 1
