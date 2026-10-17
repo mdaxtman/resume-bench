@@ -20,6 +20,8 @@ from typing import Any
 from config import INPUT_DIR, JOBS_DIR
 from corpus import list_slugs, load_jd
 from evaluation import report as report_mod
+from evaluation.bank import CONDITIONS as BANK_CONDITIONS
+from evaluation.bank import bank_path, ensure_bank, run_bank_sample
 from evaluation.keywords import cached_keywords, coverage
 from evaluation.reliability import interpret, reliability_report
 from evaluation.rescore import discover, load_slug_map, rescore_one
@@ -163,6 +165,58 @@ def cmd_trim(args: argparse.Namespace) -> int:
                 print(f"{label:<52} FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
 
     print(f"\nDone. uv run python -m cli trim-report --sweep-id {args.sweep_id}")
+    return 0
+
+
+def cmd_bank(args: argparse.Namespace) -> int:
+    """The master-resume arm: a bank per sample index, chosen from per posting.
+
+    The banks are built first, one at a time, because every posting's sample
+    of that index reads the same one. Postings then run concurrently.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    slugs = args.jd or list_slugs()
+    unknown = set(slugs) - set(list_slugs())
+    if unknown:
+        raise SystemExit(f"Unknown JD slug(s): {', '.join(sorted(unknown))}")
+
+    narratives = _load_narratives()
+    meta = write_metadata(args.sweep_id)
+    print(
+        f"bank {args.sweep_id}: {len(slugs)} JDs x {args.samples} samples x "
+        f"{len(BANK_CONDITIONS)} conditions, {args.budget}-word budget"
+    )
+    print("prompts: " + "  ".join(f"{k}={v}" for k, v in meta["prompts"].items()) + "\n")
+
+    for i in range(1, args.samples + 1):
+        ensure_bank(args.sweep_id, i, narratives)
+        record = json.loads(
+            bank_path(args.sweep_id, i).with_suffix(".verification.json").read_text()
+        )
+        kept = "  ".join(f"{k} {record['kept'][k]}/{record['total'][k]}" for k in record["kept"])
+        print(f"bank-{i}: evidence found for {kept}")
+
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        futures = {
+            pool.submit(
+                run_bank_sample, args.sweep_id, slug, i, narratives, args.budget
+            ): f"{slug} #{i}"
+            for slug in slugs
+            for i in range(1, args.samples + 1)
+        }
+        for done, future in enumerate(as_completed(futures), start=1):
+            label = f"[{done}/{len(futures)}] {futures[future]}"
+            try:
+                summary = "  ".join(
+                    f"{r['arm']} {r['words']}w composite {r['composite']:.2f}"
+                    for r in future.result()
+                )
+                print(f"{label:<44} {summary}")
+            except Exception as exc:  # one bad sample must not kill the run
+                print(f"{label:<44} FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+    print(f"\nDone. Results in runs/{args.sweep_id}/")
     return 0
 
 
@@ -354,6 +408,16 @@ def main(argv: list[str] | None = None) -> int:
     p_trim_report = sub.add_parser("trim-report", help="aggregate a trim experiment")
     p_trim_report.add_argument("--sweep-id", default="trim-01")
     p_trim_report.set_defaults(func=cmd_trim_report)
+
+    p_bank = sub.add_parser(
+        "bank", help="the master-resume arm: write a bank once, choose from it per posting"
+    )
+    p_bank.add_argument("--sweep-id", default="bank-01")
+    p_bank.add_argument("--jd", nargs="*", help="specific JD slugs (default: all)")
+    p_bank.add_argument("--samples", type=int, default=3, help="one bank per sample index")
+    p_bank.add_argument("--budget", type=int, required=True, help="word budget per document")
+    p_bank.add_argument("--workers", type=int, default=4, help="postings run concurrently")
+    p_bank.set_defaults(func=cmd_bank)
 
     p_report = sub.add_parser("report", help="aggregate a sweep")
     p_report.add_argument("--sweep-id", help="default: most recent")
