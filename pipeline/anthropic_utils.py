@@ -46,21 +46,6 @@ def select_tool_input(inputs: list[dict[str, Any]], validate: Validator | None) 
     raise ValueError(f"no usable tool_use block among {len(inputs)} returned")
 
 
-# The SDK refuses a request that is not streamed once its max_tokens implies
-# more than ten minutes of generation, which it puts just above this.
-STREAM_ABOVE = 20000
-
-
-def _send(kwargs: dict[str, Any]) -> Message:
-    """One request, streamed when its output may exceed what a plain request
-    is allowed to wait for. The master resume needed more than 20k tokens."""
-    client = _get_anthropic_client()
-    if kwargs.get("max_tokens", 0) > STREAM_ABOVE:
-        with client.messages.stream(**kwargs) as stream:
-            return cast(Message, stream.get_final_message())
-    return cast(Message, client.messages.create(**kwargs))
-
-
 def _tool_inputs(response: Message) -> list[dict[str, Any]]:
     return [cast(dict[str, Any], b.input) for b in response.content if b.type == "tool_use"]
 
@@ -98,7 +83,7 @@ def _call_once(
     kwargs.setdefault("thinking", {"type": "disabled"})
 
     start = time.perf_counter()
-    response = _send(kwargs)
+    response = _get_anthropic_client().messages.create(**kwargs)
     latency_ms = int((time.perf_counter() - start) * 1000)
 
     inputs = _tool_inputs(response)
