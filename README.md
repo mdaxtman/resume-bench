@@ -138,7 +138,10 @@ part a bank cannot supply, a summary written for the posting, turns out to be
 the largest single effect measured. *Does a summary written last do better?*
 finds that it does not. On the pipeline's own documents, whose bullets are
 written for the posting, the summary adds readability but no jd alignment,
-and both judges charge it with claims.
+and both judges charge it with claims. *Do the role dates survive the
+pipeline?* finds that refinement moved the current role's start date in four
+documents of 39, because the screener did not know today's date. That is
+fixed at no measurable cost.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -1310,7 +1313,63 @@ and +0.18 under the second. Every interval spans zero.
 a year or two early, so it overlaps the role before it, and one lists it
 second, against the generator's rule that roles run most recent first. The
 judge charges each early date as an untraceable claim, and those dates are the
-only untraceable claims in `full`.
+only untraceable claims in `full`. They are fixed under *Do the role dates
+survive the pipeline?*
+
+### Do the role dates survive the pipeline?
+
+The generator copies each role's dates from the career overview, and it had
+all 39 right. The four early dates were refinement's. The screener, which
+reads the draft against the posting, was never told today's date. In four
+documents it called the current role's recent start a future date and a
+likely typo. Refinement moved the start back a year or two in exactly those
+four. It is the same artefact the judges showed until they were given the
+date (*Is the instrument any good?*). The fifth document's draft listed the
+current role second.
+
+The fix (`42d1ad9`) has three parts:
+
+- The screener and refinement prompts state today's date, as the judges' do.
+- The generator's roles are sorted by their dates in code, most recent first.
+- Refinement cannot change a role's date line. If it does, the draft's line
+  goes back under the same heading.
+
+To check it, the screener and refinement were re-run twice on the same day,
+on the same 39 generator outputs: once as they were before the fix and once
+with it. Both runs were scored by the committed judge.
+
+```
+documents                   original   before the fix   with the fix
+a role dated or ordered wrong      5                4              0
+the screener flags the date        4                4              0
+
+paired by job (13)          with minus before         before minus original
+jd alignment                -0.08 [-0.31, +0.16]      -0.13 [-0.32, +0.07]
+readability                 -0.01 [-0.11, +0.08]      -0.01 [-0.12, +0.11]
+hire intent                 -0.15 [-0.33, +0.02]      -0.05 [-0.25, +0.15]
+composite                   -0.06 [-0.23, +0.12]      -0.09 [-0.24, +0.07]
+unsupported claims          -0.31 [-0.57, -0.04]      +0.00 [-0.37, +0.37]
+net composite               +0.10 [-0.11, +0.30]      -0.09 [-0.33, +0.16]
+```
+
+**The fix removes the error and costs nothing measurable.** Before the fix,
+the early start came back in three documents, in two of the postings that had
+it before. In two of them, refinement also moved the previous role's end back
+to close the overlap it had made, so two dates were wrong. With the fix, no
+document is wrong. The screener no longer flags the date. Refinement changed
+no date on its own, so the restore never had to act. Every score is level.
+
+**The wrong dates were charged as claims.** In the run before the fix, the
+judge charged them as four overstatements and one untraceable claim. With
+them gone, unsupported claims fall 0.31 a document, and the dates are about
+half of that. The rest is spread across the postings and is not attributed
+to the fix.
+
+**Re-running refinement moves the scores as much as the fix does.** Measured
+against the original sweep, the fix looked like it cost jd alignment −0.21
+[−0.43, +0.02]. Most of that was the re-run itself: the same drafts and
+prompts, re-run without the fix, moved jd alignment −0.13. A change to a late
+stage has to be compared against a re-run without it, on the same inputs.
 
 ## Decisions this measurement implies
 
@@ -1380,10 +1439,11 @@ read a resume whose summary held every role as raw JSON, with no role headings
 below it, and gave it 9.0 on jd alignment and 7.0 on readability with no
 mention of the markup. It reads for content. Whether a stage's output has the
 fields and form it should is a validator's job, at the stage that produced it,
-with a retry. Dates and role order are the next such check: five of the
-current pipeline's 39 documents start the current role a year or two early or
-list it second (*Does a summary written last do better?*), and the narratives'
-career overview gives every date.
+with a retry. Dates and role order are checked too. Where code can settle a
+fact, it settles it rather than retrying: the generator's roles are sorted by
+their dates, and refinement's date lines are put back to the draft's. The
+screener and refinement are also told today's date, as the judges are (*Do the
+role dates survive the pipeline?*).
 
 **A claim count needs a second judge before it decides anything.** The
 authenticity judge counts claims it has itself cleared: 7% of its findings.

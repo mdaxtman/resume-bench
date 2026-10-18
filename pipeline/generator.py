@@ -83,6 +83,44 @@ def draft_is_usable(result: dict[str, Any]) -> bool:
     )
 
 
+_MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+_DATE_POINT = re.compile(
+    r"\b(?:(" + "|".join(_MONTHS) + r")[a-z]*\.?\s+)?((?:19|20)\d\d)\b|\b(present|current|now)\b",
+    re.IGNORECASE,
+)
+_OPEN_END = 10**6
+
+
+def _date_span(dates: str) -> tuple[int, int] | None:
+    """A role's (start, end) in months, with an open end as the latest.
+    None when the dates name no year."""
+    points = [
+        _OPEN_END if open_end else int(year) * 12 + (_MONTHS.index(month.lower()) if month else 0)
+        for month, year, open_end in _DATE_POINT.findall(dates)
+    ]
+    return (points[0], points[-1]) if points else None
+
+
+def order_roles(resume_data: dict[str, Any]) -> dict[str, Any]:
+    """Put the roles most recent first, by their dates.
+
+    The prompt requires it, and the generator copies its dates from the career
+    overview correctly, but one draft in 39 listed the current role second.
+    The dates already settle the order, so it is set here rather than asked
+    for again. If any role's dates name no year, the order is left as it is.
+    """
+    roles = resume_data.get("experience")
+    if not isinstance(roles, list) or not all(isinstance(role, dict) for role in roles):
+        return resume_data
+    spans = [_date_span(str(role.get("dates", ""))) for role in roles]
+    known = [span for span in spans if span is not None]
+    if len(known) != len(roles):
+        return resume_data
+    # Latest end first, then latest start; sorted() keeps ties in the given order.
+    order = sorted(range(len(roles)), key=lambda i: (known[i][1], known[i][0]), reverse=True)
+    return {**resume_data, "experience": [roles[i] for i in order]}
+
+
 def _format_note(notes: str | None) -> str:
     """Format optional notes as suffix string."""
     return f" ({notes})" if notes else ""
@@ -289,7 +327,7 @@ def run_generator(
     )
 
     # cast needed: Anthropic SDK requires Any type for tools parameter despite static type hints
-    return call_model(
+    draft = call_model(
         "generate",
         validate=draft_is_usable,
         attempts=3,
@@ -311,3 +349,4 @@ def run_generator(
         ),
         tool_choice={"type": "tool", "name": _TOOL_NAME},
     )
+    return order_roles(draft)
