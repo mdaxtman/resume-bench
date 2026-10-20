@@ -23,7 +23,7 @@ from evaluation import report as report_mod
 from evaluation.keywords import cached_keywords, coverage
 from evaluation.reliability import interpret, reliability_report
 from evaluation.rescore import discover, load_slug_map, rescore_one
-from evaluation.sweep import ARMS, read_metadata, run_sample, write_metadata
+from evaluation.sweep import ARMS, EXPERIMENT_ARMS, read_metadata, run_sample, write_metadata
 from evaluation.trim import load_trim, render_trim, run_trim
 
 
@@ -366,7 +366,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_sweep.add_argument("--sweep-id", help="resume or name a sweep (default: timestamp)")
     p_sweep.add_argument(
-        "--arms", nargs="*", choices=list(ARMS), help="restrict to one arm (default: both)"
+        "--arms",
+        nargs="*",
+        choices=list(ARMS + EXPERIMENT_ARMS),
+        help="restrict to these arms (default: pipeline and control)",
     )
     p_sweep.set_defaults(func=cmd_sweep)
 
