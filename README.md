@@ -1531,9 +1531,9 @@ resume beat writing for each posting?*). On the pipeline's own summary they
 agree in direction and differ in size, 0.54 claims a document against 0.97
 (*Does a summary written last do better?*). Between two one-sentence
 summaries they disagree in direction again (*Does a one-sentence summary keep
-the opening and drop the claims?*). The verdict judge lives outside the
-harness for now. It would need to become a command, so that
-any comparison can be re-judged with it.
+the opening and drop the claims?*). *Implemented:* `cli verdict` runs the
+verdict judge over any sweep, and `report` prints its count and net composite
+under the committed judge's.
 
 ## A worked example: an input shape that broke a stage
 
@@ -1590,6 +1590,7 @@ already scored, so an interrupted sweep resumes rather than restarts.
 uv run python -m cli compare <baseline-id> <candidate-id>
 uv run python -m cli reliability --sweep-id <id> --documents 6 --repeats 4 [--authenticity]
 uv run python -m cli coverage --sweep-id <id>
+uv run python -m cli verdict --sweep-id <id> [--arms <arm>...]
 uv run python -m cli rescore --source <archive-dir> [--dry-run]
 ```
 
@@ -1607,6 +1608,14 @@ composite charges.
 **`coverage`** computes literal keyword coverage over documents already on disk.
 Terms are extracted once per posting, cached, and applied identically to both
 arms. Only the extraction costs anything; the matching is pure.
+
+**`verdict`** counts the unsupported claims in a sweep's documents a second
+time, with the verdict judge. It reads what the authenticity judge reads, and
+each finding it writes ends in a verdict, so a claim it clears is not counted.
+The two judges agree on the control against the pipeline and on little else
+document by document, so a claim count that decides anything should be read
+under both. Once every document in an arm has a verdict, `report` shows the
+second count beneath the first. A run resumes where it stopped.
 
 **`trim`** takes the documents of an existing sweep and scores each untrimmed
 and at several word budgets, removing whole bullets verbatim and never rewording
@@ -1633,6 +1642,7 @@ runs/<sweep>/<jd>/<arm>/sample-<n>/
     coverage.json      keyword coverage, if computed
     artefacts.json     fit report, screener report, pre-refinement draft
     trace.jsonl        every model call: tokens, latency, stop reason, full envelope
+    verdict.json       the verdict judge's findings and count, if `verdict` has run
 
 runs/<trim>/<jd>/<arm>-<budget>/sample-<n>/
     trim.json          budget, words, and every bullet removed with its rating
