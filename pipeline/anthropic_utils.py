@@ -158,9 +158,12 @@ def split_for_cache(stable: str, variable: str) -> list[dict[str, Any]]:
     A cache prefix has to match from the start of the request, so this is only
     worth doing where the stable content genuinely comes first. In this pipeline
     the narratives are ~22k tokens and byte-identical across all calls, which is
-    most of the input; where a job description precedes them, the prefix differs
-    per posting and nothing is cacheable without reordering the prompt — which
-    would be a change to what the model sees, not just to how it is billed.
+    most of the input. Where a job description precedes them, the prefix is
+    shared only by the calls for that posting. A sweep runs a posting's samples
+    back to back, a couple of minutes apart, inside the cache's five-minute
+    lifetime, so the second and third samples still read it. Moving the
+    narratives first would cache more, but would change what the model sees,
+    not just how it is billed.
 
     Concatenating the returned blocks reproduces `stable + variable` exactly. A
     caching change must never become a prompt change.

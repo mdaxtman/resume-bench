@@ -1433,8 +1433,8 @@ summary length tested is worth about what it costs.
 
 ## Decisions this measurement implies
 
-The results above changed what the scoring design should be. The first two
-below have since been implemented (see *Scoring*); the rest have not. All are
+The results above changed what the scoring design should be. Those marked
+*Implemented* have been done; the rest have not. All are
 recorded because the evidence for each is in the numbers, and because forgetting
 why a change was warranted is how a harness drifts back toward measuring the
 wrong thing.
@@ -1474,14 +1474,26 @@ adding information.
 samples.** Between-job variation (sd 0.32) is more than twice the effect (+0.14).
 `n = 3` already pins each posting's mean down well; the noise is between jobs.
 
-**Three variables have never been varied.** `JUDGE_MODEL` is a separate setting
+**Two variables have never been varied.** `JUDGE_MODEL` is a separate setting
 from `PIPELINE_MODEL` precisely so a judge can be a stronger model, and it has
 only ever been run at parity. `call_model` disables extended thinking by default,
 inherited from an interactive application where it made sense, and a judge
 fact-checking every claim against 22k tokens of ground truth is exactly where it
-might matter. And the narratives are 67% of every sweep's input tokens, identical
-across all 351 calls of a full run — the shape prompt caching exists for, and
-unused, because the code came from an application that ran one request at a time.
+might matter.
+
+**Every stage caches what its requests share.** *Implemented.* The narratives
+are 67% of every sweep's input tokens, and the code came from an application
+that ran one request at a time, with nothing to reuse. The cached part of a
+request has to be its opening, and the request text does not change. The
+generator, the control and the authenticity judge open with the narratives, so
+one cached copy serves the whole sweep. Fit, the screener, refinement and the
+cold-read judge open with the posting, so theirs serves one posting's samples,
+which a sweep runs about two minutes apart, inside the cache's five minutes.
+On a two-sample run, the second sample read every stage's opening from the
+cache, 32,931 tokens of it for fit. Measured call sizes put a full sweep's
+billed input about a fifth lower than with the narratives cached alone.
+Refinement is now the largest input cost: its narratives come after the
+draft, and caching them would mean reordering what it reads.
 
 **A jd-alignment gain needs its overstatements read beside it.** The cold-read
 judge cannot see the narratives — that isolation is the point of it — so a stage

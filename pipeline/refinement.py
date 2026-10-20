@@ -4,7 +4,7 @@ import re
 from typing import Any, NotRequired, TypedDict, cast
 
 from config import PIPELINE_MODEL
-from pipeline.anthropic_utils import call_model
+from pipeline.anthropic_utils import cached_system, call_model, split_for_cache
 from pipeline.prompts import load_prompt
 
 
@@ -139,8 +139,11 @@ def run_refinement(
     """
     system_prompt = load_prompt("refinement")
 
+    # Only the posting is shared, by the samples of a posting. The narratives
+    # come after the draft, so they cannot join the cached prefix without
+    # reordering the message, which would change what the model reads.
+    posting = f"<job_description>\n{jd_content}\n</job_description>\n\n"
     user_message = (
-        f"<job_description>\n{jd_content}\n</job_description>\n\n"
         f"<generated_resume>\n{draft}\n</generated_resume>\n\n"
         f"<screener_feedback>\n{screener_report}\n</screener_feedback>\n\n"
         f"<candidate_narratives>\n{narratives_text}\n</candidate_narratives>\n\n"
@@ -156,8 +159,8 @@ def run_refinement(
         # 8192: refined full-resume output; 4096 truncated under the
         # claude-sonnet-5 tokenizer (observed stop_reason=max_tokens)
         max_tokens=8192,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
+        system=cached_system(system_prompt),
+        messages=[{"role": "user", "content": split_for_cache(posting, user_message)}],
         tools=cast(
             Any,
             [

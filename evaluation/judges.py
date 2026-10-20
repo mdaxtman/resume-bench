@@ -91,9 +91,9 @@ def _tool_call(
 ) -> dict[str, Any]:
     """Build a judge request, caching the stage prompt and any stable prefix.
 
-    `stable` is content identical across every call of this judge — the
-    narratives, for the authenticity judge. The cold-read judge has none: it
-    sees only a job description and a resume, both of which vary.
+    `stable` is content that leads the message and repeats across calls: the
+    narratives, identical for every call of the authenticity judge, and the
+    posting, shared by every document the cold-read judge scores for it.
     """
     content: Any = (
         split_for_cache(stable, message) if stable else [{"type": "text", "text": message}]
@@ -114,10 +114,10 @@ def build_cold_read_request(inp: ColdReadInput) -> dict[str, Any]:
         "judge_cold_read",
         _COLD_READ_TOOL,
         _COLD_READ_SCHEMA,
-        f"<job_description>\n{inp.jd}\n</job_description>\n\n"
         f"<resume>\n{inp.resume}\n</resume>\n\n"
         "Score this resume against the job description using the "
         f"{_COLD_READ_TOOL} tool.",
+        stable=f"<job_description>\n{inp.jd}\n</job_description>\n\n",
     )
 
 

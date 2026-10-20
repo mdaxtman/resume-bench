@@ -3,7 +3,7 @@
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
 from config import PIPELINE_MODEL
-from pipeline.anthropic_utils import call_model
+from pipeline.anthropic_utils import cached_system, call_model, split_for_cache
 from pipeline.prompts import load_prompt
 
 
@@ -78,8 +78,9 @@ def run_screener(jd_content: str, resume_text: str) -> ScreenerReport:
         RuntimeError: If API call fails or no tool response found
     """
     system_prompt = load_prompt("resume_screener")
+    # The posting is shared by the samples of a posting. See split_for_cache.
+    posting = f"<job_description>\n{jd_content}\n</job_description>\n\n"
     user_message = (
-        f"<job_description>\n{jd_content}\n</job_description>\n\n"
         f"<resume>\n{resume_text}\n</resume>\n\n"
         "Analyze this resume against the job description from an ATS perspective. "
         "Use the submit_screener_analysis tool to submit your assessment."
@@ -89,8 +90,8 @@ def run_screener(jd_content: str, resume_text: str) -> ScreenerReport:
         "screen",
         model=PIPELINE_MODEL,
         max_tokens=2048,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
+        system=cached_system(system_prompt),
+        messages=[{"role": "user", "content": split_for_cache(posting, user_message)}],
         tools=cast(
             Any,
             [
