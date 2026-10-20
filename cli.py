@@ -23,6 +23,7 @@ from evaluation import report as report_mod
 from evaluation.keywords import cached_keywords, coverage
 from evaluation.reliability import interpret, reliability_report
 from evaluation.rescore import discover, load_slug_map, rescore_one
+from evaluation.summary import CONDITIONS, run_summary
 from evaluation.sweep import ARMS, read_metadata, run_sample, write_metadata
 from evaluation.trim import load_trim, render_trim, run_trim
 
@@ -163,6 +164,48 @@ def cmd_trim(args: argparse.Namespace) -> int:
                 print(f"{label:<52} FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
 
     print(f"\nDone. uv run python -m cli trim-report --sweep-id {args.sweep_id}")
+    return 0
+
+
+def cmd_summary(args: argparse.Namespace) -> int:
+    """Score finished pipeline documents with the summary as is, removed, cut to
+    its first sentence, and rewritten as one sentence. Only the summary differs
+    between conditions."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    root = pathlib.Path("runs") / args.source
+    samples = sorted(
+        p.parent
+        for p in root.glob("*/pipeline/sample-*/resume.md")
+        if not args.jd or p.parts[-4] in args.jd
+    )
+    if not samples:
+        raise SystemExit(f"No pipeline documents under {root}")
+
+    meta = write_metadata(args.sweep_id)
+    print(
+        f"summary {args.sweep_id}: {len(samples)} documents from {args.source} x "
+        f"{len(CONDITIONS)} conditions ({', '.join(CONDITIONS)})"
+    )
+    print("prompts: " + "  ".join(f"{k}={v}" for k, v in meta["prompts"].items()) + "\n")
+
+    narratives = _load_narratives()
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        futures = {}
+        for sample_dir in samples:
+            slug, index = sample_dir.parts[-3], int(sample_dir.name.split("-")[1])
+            future = pool.submit(run_summary, args.sweep_id, sample_dir, slug, index, narratives)
+            futures[future] = f"{slug} #{index}"
+        for done, future in enumerate(as_completed(futures), start=1):
+            label = f"[{done}/{len(futures)}] {futures[future]}"
+            try:
+                line = "  ".join(
+                    f"{r['arm']} {r['summary_words']}w jd {r['jd_alignment']:.1f}"
+                    for r in future.result()
+                )
+                print(f"{label:<44} {line}")
+            except Exception as exc:  # one bad document must not kill the run
+                print(f"{label:<44} FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
     return 0
 
 
@@ -354,6 +397,16 @@ def main(argv: list[str] | None = None) -> int:
     p_trim_report = sub.add_parser("trim-report", help="aggregate a trim experiment")
     p_trim_report.add_argument("--sweep-id", default="trim-01")
     p_trim_report.set_defaults(func=cmd_trim_report)
+
+    p_summary = sub.add_parser(
+        "summary",
+        help="re-score pipeline documents with the summary removed or cut to one sentence",
+    )
+    p_summary.add_argument("--source", required=True, help="sweep whose documents are used")
+    p_summary.add_argument("--sweep-id", default="summary-one-01")
+    p_summary.add_argument("--jd", nargs="*", help="specific JD slugs (default: all in source)")
+    p_summary.add_argument("--workers", type=int, default=4, help="documents scored concurrently")
+    p_summary.set_defaults(func=cmd_summary)
 
     p_report = sub.add_parser("report", help="aggregate a sweep")
     p_report.add_argument("--sweep-id", help="default: most recent")
