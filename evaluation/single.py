@@ -32,6 +32,10 @@ measurable over one call, unless any of these holds:
 
 If any holds, the staging has earned its three extra calls, and the arm is
 reverted.
+
+None held, and the arm is kept (single-01). Against the pipeline every
+difference is inside noise under both judges, at a quarter of the calls. See
+the README, *Does the staging beat one call with the same rules?*
 """
 
 import json

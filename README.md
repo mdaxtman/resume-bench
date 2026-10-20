@@ -144,7 +144,11 @@ documents of 39, because the screener did not know today's date. That is
 fixed at no measurable cost. *Does a one-sentence summary keep the opening and drop
 the claims?* finds that one sentence keeps about half the opening, and that
 the claims come with the clause tailored to the posting. No summary length
-tested nets differently from the full summary.
+tested nets differently from the full summary. *Does the staging beat one
+call with the same rules?* finds that it does not. One call carrying the
+generator's rules matches the pipeline on every score, under both judges,
+and carries the same advantage in claims over the single prompt, at a
+quarter of the calls. The honesty was the rules, not the staging.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -1431,6 +1435,85 @@ nets it 0.29 higher [+0.01, +0.57]. Against the full summary, no condition's
 net composite differs from zero under either judge. At 0.5 a claim, every
 summary length tested is worth about what it costs.
 
+### Does the staging beat one call with the same rules?
+
+Against the single prompt, the pipeline's one lasting advantage has been
+honesty: fewer unsupported claims, under both judges, at a lower composite.
+But the control's prompt has one sentence about grounding, and the
+generator's carries every rule found to matter here: the summary held to the
+candidate's own work, skills held to the narratives, gaps named at their true
+depth, ownership verbs, the bullet budget. No measurement had separated the
+rules from the staging.
+
+`single` gives one call those rules. Its prompt is the generator's, with each
+reference to the fit report replaced by the comparison the fit stage would
+have made, and every other line unchanged. It reads the narratives and the
+posting, is held to the same bullet budget, and the same code sorts its
+roles. There is no fit assessment, screener or refinement. `draft` scores the
+pipeline's own draft before the screener and refinement. All four arms ran
+fresh in one sweep, 13 postings and 3 samples each, and both judges scored
+every document. The rule was fixed before the run (`9da6cad`): `single` is
+kept unless, against the pipeline, its net composite is demonstrably lower
+under either judge, its composite is demonstrably lower, or fewer of its
+documents pass the gate.
+
+```
+paired by job (13)       single minus pipeline   single minus control    pipeline minus draft
+jd alignment             +0.00 [-0.42, +0.42]    -0.41 [-0.74, -0.08]    +0.05 [-0.19, +0.30]
+readability              +0.03 [-0.11, +0.18]    +0.32 [+0.15, +0.49]    -0.05 [-0.17, +0.06]
+composite                +0.01 [-0.29, +0.31]    -0.17 [-0.42, +0.09]    +0.02 [-0.17, +0.21]
+unsupported, committed   +0.31 [-0.35, +0.97]    -0.90 [-1.55, -0.24]    +0.05 [-0.49, +0.59]
+unsupported, second      +0.08 [-0.88, +1.04]    -1.10 [-1.68, -0.52]    -0.05 [-0.48, +0.37]
+net composite, committed -0.14 [-0.53, +0.24]    +0.28 [-0.15, +0.71]    -0.01 [-0.21, +0.19]
+net composite, second    -0.03 [-0.51, +0.46]    +0.38 [-0.04, +0.81]    +0.04 [-0.18, +0.27]
+```
+
+```
+per document, generation only    calls   input tokens billed   output tokens   model time
+pipeline                          4.31                64,058          10,956        103 s
+single                            1.08                 7,853           2,784         26 s
+control                           1.00                 6,242           3,083         31 s
+```
+
+**One call does what the pipeline does, and `single` is kept.** Every
+difference from the pipeline is inside noise, under both judges. All 39 of
+its documents pass the gate. It writes the same length (816 words against
+825) and covers about as many of the posting's required terms (50% against
+52%). The pipeline takes four calls to do it, with eight times the input
+tokens, four times the output and four times the model time.
+
+**The honesty was the rules, not the staging.** One call with the
+generator's rules carries fewer unsupported claims than the single prompt,
+under both judges: −0.90 and −1.10 a document, on 9 and 10 postings of 13. It
+gives up the same jd alignment the pipeline does, −0.41, in a document 346
+words shorter. The pipeline's lead in claims over the single prompt
+replicates, −1.21 [−2.21, −0.20] and −1.18 [−2.26, −0.10], and one call
+matches it.
+
+**No stage but the generator does anything measurable.** The screener and
+refinement add 7 words to the draft and move no score:
+composite +0.02, net composite −0.01 and +0.04. The fit stage's whole effect,
+`single` against `draft`, is inside noise on every score.
+
+**What the fit stage did do.** Three of `single`'s 39 documents have an
+untraceable claim, against none of the pipeline's. Two are one posting's
+Next.js, written into the skills list as "adjacent" and "exposure" although
+the narratives never mention it. The prompt forbids that bridging. The fit
+stage files such a technology as a gap, and the generator leaves gaps out. The
+single prompt makes the same claim on that posting. By the honesty test
+earlier rules used, at most 1 of 39, `single` would fail. This rule compared
+it with the pipeline instead, and the difference, +0.10 untraceable claims a
+document [−0.07, +0.27], is inside noise.
+
+**What this does not show.** Not demonstrably worse is not shown equal. With
+13 postings the intervals leave room for the staging to be worth up to 0.53
+of net composite under the committed judge, 0.51 under the second and 0.29 of
+composite. The rules `single` carries were found by experiments on the
+pipeline, and the staging is how they were found. The pipeline's net
+composite lead over the single prompt, +0.63 [+0.14, +1.11] in its last
+fresh sweep, is +0.43 [−0.10, +0.95] here and +0.41 [−0.19, +1.02] under the
+second judge.
+
 ## Decisions this measurement implies
 
 The results above changed what the scoring design should be. Those marked
@@ -1490,8 +1573,9 @@ one cached copy serves the whole sweep. Fit, the screener, refinement and the
 cold-read judge open with the posting, so theirs serves one posting's samples,
 which a sweep runs about two minutes apart, inside the cache's five minutes.
 On a two-sample run, the second sample read every stage's opening from the
-cache, 32,931 tokens of it for fit. Measured call sizes put a full sweep's
-billed input about a fifth lower than with the narratives cached alone.
+cache, 32,931 tokens of it for fit. Over the pipeline and control arms of a
+full sweep (*Does the staging beat one call with the same rules?*), billed
+input was 28% lower than with the narratives cached alone.
 Refinement is now the largest input cost: its narratives come after the
 draft, and caching them would mean reordering what it reads.
 
@@ -1505,6 +1589,16 @@ with more of either is unproven until a version without them keeps it.
 *Implemented:* every report prints unsupported claims and a net composite, at
 0.5 a claim, beside the composite (*What if an unsupported claim cost
 something?*).
+
+**The staging has not earned its calls.** One call with the generator's
+rules matches the pipeline under both judges at a quarter of the calls and
+about an eighth of the input tokens (*Does the staging beat one call with the
+same rules?*). A product built on this pipeline could drop the fit assessment,
+the screener and refinement and keep the generator's rules. What it would
+need in their place is a check that keeps a technology the narratives never
+mention out of the skills list, the one thing the fit stage was seen to do.
+The pipeline stays in the harness, as the arm every earlier result is
+measured on.
 
 **A document's shape is checked in code, not by a judge.** The cold-read judge
 read a resume whose summary held every role as raw JSON, with no role headings

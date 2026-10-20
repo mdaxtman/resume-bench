@@ -31,7 +31,7 @@ from render import build_resume_markdown
 from telemetry import tracing
 
 ARMS = ("pipeline", "control")
-# Opt-in arms for the single-call experiment (see evaluation.single). `draft`
+# Opt-in arms from the single-call experiment (see evaluation.single). `draft`
 # reads the pipeline sample with the same index, so it runs after `pipeline`.
 EXPERIMENT_ARMS = ("single", "draft")
 
