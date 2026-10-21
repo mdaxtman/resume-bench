@@ -5,6 +5,10 @@ narratives and to the competing arm. One authenticity judge fact-checks a
 resume against the narratives, blind to the JD. The isolation is carried by the
 input types in `evaluation.contracts`, not by discipline at the call site.
 
+A second authenticity judge, the verdict judge, counts the same claims a
+different way. It is not part of a sweep's scores; `cli verdict` runs it over a
+sweep on disk, so a claim count can be checked against a second instrument.
+
 Request construction is split out from execution (`build_*_request` vs `run_*`)
 so the payload can be asserted on directly in tests. Contamination is a
 property of what reaches the API, so that is what the tests inspect.
@@ -20,7 +24,13 @@ from evaluation.contracts import (
     ColdReadInput,
     ColdReadScores,
 )
-from pipeline.anthropic_utils import cached_system, call_model, split_for_cache, str_items
+from pipeline.anthropic_utils import (
+    cached_system,
+    call_model,
+    dict_items,
+    split_for_cache,
+    str_items,
+)
 
 _COLD_READ_TOOL = "submit_cold_read"
 _AUTHENTICITY_TOOL = "submit_authenticity"
@@ -66,6 +76,30 @@ _AUTHENTICITY_SCHEMA: dict[str, Any] = {
     },
 }
 
+# The verdict judge: each finding is an object whose verdict is written after its
+# reason, and a claim the reason clears is marked `supported` and not counted.
+VERDICTS = ("untraceable", "overstated", "supported")
+
+_VERDICT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": ["claims_checked", "findings"],
+    "properties": {
+        "claims_checked": {"type": "integer", "minimum": 1},
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["claim", "reason", "verdict"],
+                "properties": {
+                    "claim": {"type": "string"},
+                    "reason": {"type": "string"},
+                    "verdict": {"type": "string", "enum": list(VERDICTS)},
+                },
+            },
+        },
+    },
+}
+
 # Weight of each finding type in penalty points.
 _UNTRACEABLE_PENALTY = 2.0
 _OVERSTATEMENT_PENALTY = 1.0
@@ -91,9 +125,9 @@ def _tool_call(
 ) -> dict[str, Any]:
     """Build a judge request, caching the stage prompt and any stable prefix.
 
-    `stable` is content identical across every call of this judge — the
-    narratives, for the authenticity judge. The cold-read judge has none: it
-    sees only a job description and a resume, both of which vary.
+    `stable` is content that leads the message and repeats across calls: the
+    narratives, identical for every call of the authenticity judge, and the
+    posting, shared by every document the cold-read judge scores for it.
     """
     content: Any = (
         split_for_cache(stable, message) if stable else [{"type": "text", "text": message}]
@@ -114,10 +148,10 @@ def build_cold_read_request(inp: ColdReadInput) -> dict[str, Any]:
         "judge_cold_read",
         _COLD_READ_TOOL,
         _COLD_READ_SCHEMA,
-        f"<job_description>\n{inp.jd}\n</job_description>\n\n"
         f"<resume>\n{inp.resume}\n</resume>\n\n"
         "Score this resume against the job description using the "
         f"{_COLD_READ_TOOL} tool.",
+        stable=f"<job_description>\n{inp.jd}\n</job_description>\n\n",
     )
 
 
@@ -132,6 +166,18 @@ def build_authenticity_request(inp: AuthenticityInput) -> dict[str, Any]:
         f"your findings using the {_AUTHENTICITY_TOOL} tool.",
         stable=f"<candidate_narratives>\n{inp.narratives}\n</candidate_narratives>\n\n",
     )
+
+
+def build_verdict_request(inp: AuthenticityInput) -> dict[str, Any]:
+    """Payload for the verdict judge: the authenticity judge's request, with its
+    own prompt and output schema. It sees exactly what the authenticity judge
+    sees, so the two counts differ only in how the judge is asked."""
+    request = build_authenticity_request(inp)
+    request["system"] = cached_system(_prompt("judge_authenticity_verdict"))
+    request["tools"][0]["input_schema"] = _VERDICT_SCHEMA
+    # A reason for every finding, cleared ones included, runs long.
+    request["max_tokens"] = 12000
+    return request
 
 
 def unsupported_claims(untraceable: int, overstatements: int) -> float:
@@ -248,3 +294,53 @@ def run_authenticity(inp: AuthenticityInput) -> AuthenticityScores:
         overstatements=overstatements,
         authenticity=authenticity_score(claims, len(untraceable), len(overstatements)),
     )
+
+
+def verdict_findings(result: dict[str, Any]) -> dict[str, Any]:
+    """Split the verdict judge's findings by verdict.
+
+    Stricter than `authenticity_findings`: a finding that is not an object, or
+    whose verdict is not one of the three, has no count it belongs to, so the
+    response is malformed and worth another sample.
+    """
+    claims = int(result.get("claims_checked", 0) or 0)
+    if claims <= 0 or "findings" not in result:
+        raise ValueError(f"verdict judge reported claims_checked={claims}; cannot score")
+    raw = result["findings"]
+    items = dict_items(raw)
+    if isinstance(raw, list) and len(items) != len(raw):
+        raise ValueError("verdict judge returned a finding that is not an object")
+    split: dict[str, list[str]] = {v: [] for v in VERDICTS}
+    for finding in items:
+        verdict = finding.get("verdict")
+        if verdict not in split:
+            raise ValueError(f"verdict judge returned verdict {verdict!r}")
+        split[verdict].append(f"{finding.get('claim', '')} — {finding.get('reason', '')}")
+    if len(split["untraceable"]) + len(split["overstated"]) > claims:
+        raise ValueError("impossible verdict findings: more counted than claims checked")
+    return {
+        "claims_checked": claims,
+        "untraceable": split["untraceable"],
+        "overstatements": split["overstated"],
+        "withdrawn": split["supported"],
+        "unsupported": unsupported_claims(len(split["untraceable"]), len(split["overstated"])),
+    }
+
+
+def verdict_valid(result: dict[str, Any]) -> bool:
+    try:
+        verdict_findings(result)
+    except (ValueError, TypeError, KeyError):
+        return False
+    return True
+
+
+def run_verdict(inp: AuthenticityInput) -> dict[str, Any]:
+    """The verdict judge's findings and its count of unsupported claims."""
+    result = call_model(
+        "judge_authenticity_verdict",
+        validate=verdict_valid,
+        attempts=3,
+        **build_verdict_request(inp),
+    )
+    return verdict_findings(result)

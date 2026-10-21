@@ -20,6 +20,7 @@ from corpus import load_jd
 from evaluation.contracts import AuthenticityInput, ColdReadInput
 from evaluation.control import run_control
 from evaluation.judges import run_authenticity, run_cold_read
+from evaluation.single import pipeline_draft, run_single
 from pipeline.anthropic_utils import dict_items
 from pipeline.fit_assessment import run_fit_assessment
 from pipeline.generator import run_generator
@@ -30,6 +31,9 @@ from render import build_resume_markdown
 from telemetry import tracing
 
 ARMS = ("pipeline", "control")
+# Opt-in arms from the single-call experiment (see evaluation.single). `draft`
+# reads the pipeline sample with the same index, so it runs after `pipeline`.
+EXPERIMENT_ARMS = ("single", "draft")
 
 
 def _sample_dir(sweep_id: str, slug: str, arm: str, index: int) -> Path:
@@ -156,6 +160,10 @@ def run_sample(
         if arm == "pipeline":
             resume, artefacts = generate_pipeline_arm(jd, narratives, contact)
             (out / "artefacts.json").write_text(json.dumps(artefacts, indent=2, default=str))
+        elif arm == "single":
+            resume = run_single(jd, narratives, contact)
+        elif arm == "draft":
+            resume = pipeline_draft(sweep_id, slug, index)
         else:
             resume = run_control(jd, narratives)
         (out / "resume.md").write_text(resume)

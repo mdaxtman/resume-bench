@@ -25,6 +25,10 @@ AXES = (
     "net_composite",
 )
 
+# The verdict judge's count, where `cli verdict` has run. A count from one judge
+# should not decide between close versions on its own.
+SECOND_JUDGE = ("unsupported_2", "net_composite_2")
+
 
 def with_claims(row: dict[str, Any]) -> dict[str, Any]:
     """The row with its unsupported claims counted and its net composite.
@@ -35,17 +39,24 @@ def with_claims(row: dict[str, Any]) -> dict[str, Any]:
     unsupported = unsupported_claims(
         len(row.get("untraceable") or []), len(row.get("overstatements") or [])
     )
-    return {
+    out = {
         **row,
         "unsupported": unsupported,
         "net_composite": net_composite(float(row["composite"]), unsupported),
     }
+    if "verdict" in row:
+        second = float(row["verdict"]["unsupported"])
+        out["unsupported_2"] = second
+        out["net_composite_2"] = net_composite(float(row["composite"]), second)
+    return out
 
 
 _LABELS = {
     "hire_intent": "hire intent *",
     "unsupported": "unsupported claims †",
     "net_composite": "net composite †",
+    "unsupported_2": "  second judge ‡",
+    "net_composite_2": "  second judge ‡",
 }
 
 
@@ -53,7 +64,14 @@ def load_sweep(sweep_id: str) -> list[dict[str, Any]]:
     root = RUNS_DIR / sweep_id
     if not root.is_dir():
         raise ValueError(f"No sweep at {root}")
-    return [json.loads(p.read_text()) for p in sorted(root.glob("*/*/sample-*/scores.json"))]
+    rows = []
+    for path in sorted(root.glob("*/*/sample-*/scores.json")):
+        row = json.loads(path.read_text())
+        verdict = path.parent / "verdict.json"
+        if verdict.is_file():
+            row["verdict"] = json.loads(verdict.read_text())
+        rows.append(row)
+    return rows
 
 
 def latest_sweep_id() -> str:
@@ -86,11 +104,16 @@ def gate_record(rows: list[dict[str, Any]]) -> dict[str, tuple[int, int]]:
 
 
 def summarise(rows: list[dict[str, Any]]) -> dict[str, dict[str, tuple[float, float]]]:
-    """Mean and spread per axis per arm, over documents that pass the gate."""
+    """Mean and spread per axis per arm, over documents that pass the gate.
+
+    The second judge's axes appear only for an arm whose every document it has
+    judged: a mean over the ones it happened to reach would not be the arm's.
+    """
     out: dict[str, dict[str, tuple[float, float]]] = {}
     for arm in sorted({r["arm"] for r in rows}):
         arm_rows = [with_claims(r) for r in gated([r for r in rows if r["arm"] == arm])]
-        out[arm] = {axis: _stats([float(r[axis]) for r in arm_rows]) for axis in AXES}
+        axes = AXES + (SECOND_JUDGE if all("verdict" in r for r in arm_rows) else ())
+        out[arm] = {axis: _stats([float(r[axis]) for r in arm_rows]) for axis in axes}
     return out
 
 
@@ -129,7 +152,8 @@ def render(sweep_id: str, rows: list[dict[str, Any]]) -> str:
         f"{'Axis':<24}{'Pipeline':>18}{'Control':>18}{'Delta':>12}",
     ]
     both = "pipeline" in summary and "control" in summary
-    for axis in AXES:
+    second = all("unsupported_2" in axes for axes in summary.values())
+    for axis in AXES + (SECOND_JUDGE if second else ()):
         label = _LABELS.get(axis, axis.replace("_", " "))
         cells = []
         for arm in ("pipeline", "control"):
@@ -160,6 +184,11 @@ def render(sweep_id: str, rows: list[dict[str, Any]]) -> str:
         "† untraceable claims count twice, overstatements once; "
         f"net composite is composite less {CLAIM_COST} per unsupported claim."
     )
+    judged = sum("verdict" in r for r in rows)
+    if second:
+        lines.append("‡ the same, counted by the verdict judge (cli verdict).")
+    elif judged:
+        lines.append(f"‡ the verdict judge has judged {judged} of {len(rows)} documents.")
     return "\n".join(lines)
 
 

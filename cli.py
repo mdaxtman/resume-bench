@@ -23,7 +23,7 @@ from evaluation import report as report_mod
 from evaluation.keywords import cached_keywords, coverage
 from evaluation.reliability import interpret, reliability_report
 from evaluation.rescore import discover, load_slug_map, rescore_one
-from evaluation.sweep import ARMS, read_metadata, run_sample, write_metadata
+from evaluation.sweep import ARMS, EXPERIMENT_ARMS, read_metadata, run_sample, write_metadata
 from evaluation.trim import load_trim, render_trim, run_trim
 
 
@@ -263,6 +263,55 @@ def cmd_reliability(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_verdict(args: argparse.Namespace) -> int:
+    """Count every document's unsupported claims again, with the verdict judge.
+
+    The two authenticity judges agree on the control against the pipeline and
+    on little document by document, so a claim count that decides anything is
+    checked against both. Writes verdict.json beside each scores.json, skipping
+    documents that already have one, so an interrupted run resumes.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from evaluation.contracts import AuthenticityInput
+    from evaluation.judges import run_verdict
+    from telemetry import tracing
+
+    root = pathlib.Path("runs") / args.sweep_id
+    docs = sorted(
+        p
+        for p in root.glob("*/*/sample-*/resume.md")
+        if (not args.arms or p.parts[-3] in args.arms) and (not args.jd or p.parts[-4] in args.jd)
+    )
+    if not docs:
+        raise SystemExit(f"No documents under {root}")
+    todo = [d for d in docs if not (d.parent / "verdict.json").is_file()]
+    print(f"verdict {args.sweep_id}: {len(docs)} documents, {len(docs) - len(todo)} already judged")
+
+    narratives = _load_narratives()
+
+    def judge(doc: pathlib.Path) -> float:
+        with tracing(doc.parent / "verdict.trace.jsonl"):
+            result = run_verdict(AuthenticityInput(resume=doc.read_text(), narratives=narratives))
+        (doc.parent / "verdict.json").write_text(json.dumps(result, indent=2))
+        return float(result["unsupported"])
+
+    failed = 0
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        futures = {pool.submit(judge, doc): doc for doc in todo}
+        for done, future in enumerate(as_completed(futures), start=1):
+            doc = futures[future]
+            label = f"[{done}/{len(todo)}] {doc.parts[-4]} {doc.parts[-3]} #{doc.parts[-2][7:]}"
+            try:
+                print(f"{label:<58} unsupported {future.result():.0f}")
+            except Exception as exc:  # one bad document must not kill the run
+                failed += 1
+                print(f"{label:<58} FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+    print(f"\nDone, {failed} failed. uv run python -m cli report --sweep-id {args.sweep_id}")
+    return 1 if failed else 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     print(report_mod.load_and_render(args.sweep_id))
     return 0
@@ -317,7 +366,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_sweep.add_argument("--sweep-id", help="resume or name a sweep (default: timestamp)")
     p_sweep.add_argument(
-        "--arms", nargs="*", choices=list(ARMS), help="restrict to one arm (default: both)"
+        "--arms",
+        nargs="*",
+        choices=list(ARMS + EXPERIMENT_ARMS),
+        help="restrict to these arms (default: pipeline and control)",
     )
     p_sweep.set_defaults(func=cmd_sweep)
 
@@ -354,6 +406,15 @@ def main(argv: list[str] | None = None) -> int:
     p_trim_report = sub.add_parser("trim-report", help="aggregate a trim experiment")
     p_trim_report.add_argument("--sweep-id", default="trim-01")
     p_trim_report.set_defaults(func=cmd_trim_report)
+
+    p_verdict = sub.add_parser(
+        "verdict", help="count a sweep's unsupported claims again with the verdict judge"
+    )
+    p_verdict.add_argument("--sweep-id", required=True)
+    p_verdict.add_argument("--arms", nargs="*", help="restrict to these arms (default: all)")
+    p_verdict.add_argument("--jd", nargs="*", help="specific JD slugs")
+    p_verdict.add_argument("--workers", type=int, default=4, help="documents judged concurrently")
+    p_verdict.set_defaults(func=cmd_verdict)
 
     p_report = sub.add_parser("report", help="aggregate a sweep")
     p_report.add_argument("--sweep-id", help="default: most recent")

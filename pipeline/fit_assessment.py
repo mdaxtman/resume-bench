@@ -3,7 +3,7 @@
 from typing import Any, cast
 
 from config import PIPELINE_MODEL
-from pipeline.anthropic_utils import call_model, dict_items
+from pipeline.anthropic_utils import cached_system, call_model, dict_items, split_for_cache
 from pipeline.prompts import load_prompt
 
 _TOOL_NAME = "submit_fit_report"
@@ -109,9 +109,13 @@ def run_fit_assessment(jd_content: str, narratives_text: str) -> dict[str, Any]:
         RuntimeError: If API call fails or no tool response found
     """
     system_prompt = load_prompt("fit_assessment")
-    user_message = (
+    # The posting and the narratives together are the same for every sample of
+    # a posting, and a sweep runs those back to back. See split_for_cache.
+    stable = (
         f"<job_description>\n{jd_content}\n</job_description>\n\n"
         f"<candidate_background>\n{narratives_text}\n</candidate_background>\n\n"
+    )
+    instruction = (
         "Evaluate the candidate's background against this job description "
         "and submit your assessment using the submit_fit_report tool."
     )
@@ -122,8 +126,8 @@ def run_fit_assessment(jd_content: str, narratives_text: str) -> dict[str, Any]:
         attempts=3,
         model=PIPELINE_MODEL,
         max_tokens=4096,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
+        system=cached_system(system_prompt),
+        messages=[{"role": "user", "content": split_for_cache(stable, instruction)}],
         tools=cast(
             Any,
             [

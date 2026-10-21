@@ -17,7 +17,11 @@ from typing import Any
 import pytest
 
 from evaluation.contracts import AuthenticityInput, ColdReadInput
-from evaluation.judges import build_authenticity_request, build_cold_read_request
+from evaluation.judges import (
+    build_authenticity_request,
+    build_cold_read_request,
+    build_verdict_request,
+)
 
 
 def all_text(payload: dict[str, Any]) -> str:
@@ -107,6 +111,7 @@ def test_judges_are_told_todays_date() -> None:
     for payload in (
         build_cold_read_request(ColdReadInput(jd=JD, resume=RESUME_A)),
         build_authenticity_request(AuthenticityInput(resume=RESUME_A, narratives=NARRATIVES)),
+        build_verdict_request(AuthenticityInput(resume=RESUME_A, narratives=NARRATIVES)),
     ):
         text = all_text(payload)
         assert today in text

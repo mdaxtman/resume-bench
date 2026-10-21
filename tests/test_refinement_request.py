@@ -28,8 +28,13 @@ RESUME_DATA = {
 }
 
 
+def _flat(value: Any) -> str:
+    """The text a request sends, whether as a string or as cache blocks."""
+    return value if isinstance(value, str) else "".join(block["text"] for block in value)
+
+
 def _user_text(call: Any) -> str:
-    return str(call.call_args.kwargs["messages"][0]["content"])
+    return _flat(call.call_args.kwargs["messages"][0]["content"])
 
 
 def test_refinement_edits_the_rendered_draft() -> None:
@@ -62,7 +67,7 @@ def _refine_request() -> dict[str, Any]:
 def test_the_add_nothing_rule_is_the_last_thing_refinement_reads() -> None:
     """Refinement added claims its system prompt forbade. Restated last, with a
     closed list of edits, it added none."""
-    text = _refine_request()["messages"][0]["content"]
+    text = _flat(_refine_request()["messages"][0]["content"])
     assert text.rstrip().endswith(refinement.ADD_NOTHING)
 
 
@@ -70,6 +75,6 @@ def test_screener_mappings_are_suggestions_and_substitutions_cite_evidence() -> 
     """The screener cannot see the narratives and maps adjacent work as
     equivalent; refinement applied its mappings as instructions."""
     request = _refine_request()
-    assert "suggestions to check, not instructions" in request["system"]
+    assert "suggestions to check, not instructions" in _flat(request["system"])
     item = request["tools"][0]["input_schema"]["properties"]["changes_made"]["items"]
     assert "narrative_evidence" in item["properties"]
