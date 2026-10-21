@@ -141,7 +141,10 @@ written for the posting, the summary adds readability but no jd alignment,
 and both judges charge it with claims. *Do the role dates survive the
 pipeline?* finds that refinement moved the current role's start date in four
 documents of 39, because the screener did not know today's date. That is
-fixed at no measurable cost.
+fixed at no measurable cost. *Does a one-sentence summary keep the opening and drop
+the claims?* finds that one sentence keeps about half the opening, and that
+the claims come with the clause tailored to the posting. No summary length
+tested nets differently from the full summary.
 
 **Fresh sweep** — 13 job descriptions run end to end through both arms, 76
 documents. **Archive re-score** — 50 previously generated documents, byte
@@ -1371,6 +1374,63 @@ against the original sweep, the fix looked like it cost jd alignment −0.21
 prompts, re-run without the fix, moved jd alignment −0.13. A change to a late
 stage has to be compared against a re-run without it, on the same inputs.
 
+### Does a one-sentence summary keep the opening and drop the claims?
+
+On the pipeline's own documents, the summary buys the opening and costs
+claims (*Does a summary written last do better?*). The judge's opening asks
+who this is, at what level, and why they fit, and one sentence can say that.
+Two one-sentence summaries were tested on the current pipeline's 39
+documents, with the date fix, changing nothing but the summary:
+
+- `first` cuts the generator's summary to its first sentence, which already
+  names the discipline and level and usually an experience tailored to the
+  posting.
+- `one` is one sentence written last, from the finished document with the
+  narratives in view. It names the discipline, the level and the candidate's
+  own experience that bears most on what the company does, under the
+  generator's cautions and ethics.
+
+Each was compared with the full summary, re-scored in the same run, under a
+rule fixed before the run (`2a5deb6`).
+
+```
+paired by job (13), minus full   first                   one                     none
+jd alignment                     -0.10 [-0.33, +0.12]    -0.13 [-0.38, +0.13]    +0.00 [-0.18, +0.18]
+readability                      -0.14 [-0.25, -0.03]    -0.04 [-0.20, +0.13]    -0.39 [-0.52, -0.26]
+  opening                        -0.41 [-0.65, -0.18]    -0.31 [-0.60, -0.02]    -0.87 [-1.10, -0.65]
+composite                        -0.12 [-0.27, +0.04]    -0.10 [-0.30, +0.10]    -0.13 [-0.28, +0.02]
+unsupported, committed judge     -0.18 [-0.42, +0.06]    +0.18 [-0.12, +0.48]    -0.41 [-0.60, -0.22]
+unsupported, second judge        +0.13 [-0.44, +0.70]    -0.41 [-1.05, +0.23]    -0.56 [-1.15, +0.03]
+net composite, committed judge   -0.03 [-0.25, +0.20]    -0.19 [-0.46, +0.09]    +0.07 [-0.13, +0.28]
+net composite, second judge      -0.18 [-0.52, +0.16]    +0.11 [-0.27, +0.49]    +0.15 [-0.18, +0.49]
+```
+
+**Neither passes, and the arm is reverted.** `first` is honest, but its net
+composite interval spans zero, and the second judge puts it lower. `one` is
+not better either, and it fails the honesty test: 2 documents have an
+untraceable claim, against `full`'s 1. The generator's summary stays as it
+is.
+
+**One sentence keeps about half the opening.** Without a summary the opening
+scores 0.87 lower. With the generator's first sentence it scores 0.41 lower,
+and with the sentence written last, 0.31 lower. Readability follows it.
+
+**The claims come with the tailoring.** The committed judge finds 0.44
+claims a document inside the full summary, 0.15 inside its first sentence,
+and 0.36 inside the sentence written last. That is nearly the full summary's
+count in half its words. The claims sit in the clause that names the
+experience bearing on the posting, the same clause that helps the opening. A
+team's migration is written as led, and a parser another team built is
+written as built. The generator's first sentence is more generic, and under
+the committed judge, safer.
+
+**The judges disagree about the two sentences.** The committed judge charges
+the sentence written last 0.36 claims a document more than the first sentence
+[+0.15, +0.57]. The second judge charges it 0.54 fewer [−1.11, +0.03] and
+nets it 0.29 higher [+0.01, +0.57]. Against the full summary, no condition's
+net composite differs from zero under either judge. At 0.5 a claim, every
+summary length tested is worth about what it costs.
+
 ## Decisions this measurement implies
 
 The results above changed what the scoring design should be. The first two
@@ -1457,7 +1517,9 @@ versions should not rest on either judge's count alone. On a summary
 written without the narratives, they disagree in direction (*Does a master
 resume beat writing for each posting?*). On the pipeline's own summary they
 agree in direction and differ in size, 0.54 claims a document against 0.97
-(*Does a summary written last do better?*). The verdict judge lives outside the
+(*Does a summary written last do better?*). Between two one-sentence
+summaries they disagree in direction again (*Does a one-sentence summary keep
+the opening and drop the claims?*). The verdict judge lives outside the
 harness for now. It would need to become a command, so that
 any comparison can be re-judged with it.
 
